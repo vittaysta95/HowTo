@@ -45,6 +45,56 @@ got there.
 
 ---
 
+## The construction flip-book ("📖 See how it's built")
+
+Separate from the decision guide, there's now a page-by-page picture book
+of the physical build happening: demolition → site clearing → easement
+survey → leveling → excavation → foundation pour → framing → roof framing
+→ roofing → windows/doors → cladding → plumbing/electrical rough-in →
+insulation → drywall → paint & fixtures → landscaping (reflects any extras
+you picked) → move-in day. 17 pages, Prev/Next to turn them, dots show
+progress. It's purely narrative — no choices to make, just the story of
+how a house actually goes up.
+
+This lives in `modules/house.js` as `HOUSE_MODULE.storyboard`, a separate
+array from `steps`. Each page is `{ id, title, caption, svg }`, where `svg`
+is either a literal SVG string or a `function(choices) => svgString` (only
+the landscaping page uses this, to show your chosen extras). All the
+figures reuse one shared `worker(x, y, vestColor)` helper defined at the
+top of that block, so the art style stays consistent — add a new page by
+calling `storyboard.push(page(id, title, caption, sceneSVG))` with a new
+scene built from `worker(...)` plus whatever props/tools you add around it.
+
+## Staged structure & the wider feature set
+
+The 24 decisions are now grouped into 8 numbered stages, shown as a banner
+above each page ("STAGE 2/8 — Architectural Design"):
+
+1. **Understanding the Codes** — zoning, land, climate, orientation, lot setting
+2. **Architectural Design** — bedroom count, storeys (1 or 2), extras
+   (pool, sauna, gym, tennis court, tree-through-the-house, garage, home
+   office, outdoor kitchen, guest suite, extra battery storage), a
+   feature-positioning step with tips specific to whichever extras you
+   picked, floor plan, and room/sunlight layout
+3. **Demolition** — what's on the land today
+4. **Site Clearing & Setup**
+5. **Foundation & Structure**
+6. **Building the Envelope** — roof, walls, windows
+7. **Building the Systems** — insulation, HVAC, plumbing/electrical
+8. **Final Planning** — budget
+
+`HOUSE_MODULE.stageNames` maps stage numbers to display names; each step
+carries a `stage` number. Add a new stage by adding an entry to that map
+and giving new steps that stage number — the banner picks it up
+automatically.
+
+The storyboard flip-book is similarly flexible: pages can carry a
+`showIf(choices)` function, so e.g. the "digging & lining the pool" page
+only appears if you picked a pool, and "framing the second storey" only
+appears for a two-storey build. It ranges from 17 pages (nothing extra,
+one storey) up to 23 (everything selected, two storeys) — verified both
+ends of that range in testing.
+
 ## Not seeing graphics / the new layout?
 
 If you've opened this app before (even once) and updated the files since,

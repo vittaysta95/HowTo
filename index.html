@@ -112,6 +112,15 @@
     100%{transform:scale(1);}
   }
 
+  #stage-banner{
+    background:var(--ink);color:#fff;border-radius:10px;padding:8px 14px;margin-bottom:10px;
+    font-family:'Baloo 2',system-ui,sans-serif;font-weight:700;font-size:0.82rem;
+    display:flex;align-items:center;gap:8px;
+  }
+  #stage-banner .stage-num{
+    background:rgba(255,255,255,0.2);border-radius:6px;padding:2px 8px;font-size:0.72rem;
+  }
+
   #progress-wrap{margin-bottom:6px;}
   #progress-label{font-size:0.8rem;color:var(--ink-soft);margin-bottom:6px;font-weight:600;}
   #progress-bar{height:8px;border-radius:5px;background:var(--line);overflow:hidden;}
@@ -170,7 +179,7 @@
     background:#1C2B1E;color:#fff;border-radius:14px;
     box-shadow:0 8px 26px rgba(0,0,0,0.4);z-index:60;padding:14px 16px 16px;
     transform:translateY(160%);opacity:0;transition:transform 0.35s ease, opacity 0.35s ease;
-    pointer-events:none;max-height:60vh;overflow-y:auto;
+    pointer-events:none;max-height:30vh;overflow-y:auto;
   }
   .wf-toast.show{transform:translateY(0);opacity:1;pointer-events:auto;}
   .wf-toast-head{display:flex;align-items:center;gap:8px;font-weight:800;font-family:'Baloo 2',system-ui,sans-serif;margin-bottom:6px;}
@@ -255,6 +264,32 @@
   #playthrough-dots .pd.done{background:var(--green);}
   #playthrough-skip{display:block;margin:10px auto 0;}
 
+  /* ---------------- Construction flip-book ---------------- */
+  .flipbook-card{
+    background:#FBF9F2;border-radius:var(--radius);padding:16px;
+    box-shadow:var(--shadow);border:3px solid var(--line);
+    background-image:radial-gradient(var(--line) 1px, transparent 1px);
+    background-size:16px 16px;
+  }
+  .flipbook-page{
+    background:linear-gradient(180deg,#DCEFF9 0%,#F2F2ED 70%);
+    border-radius:10px;border:3px solid var(--ink);overflow:hidden;
+    animation:pageTurn 0.4s ease;
+  }
+  .flipbook-page svg{width:100%;height:auto;display:block;}
+  @keyframes pageTurn{
+    0%{opacity:0;transform:perspective(600px) rotateY(-8deg);}
+    100%{opacity:1;transform:perspective(600px) rotateY(0deg);}
+  }
+  .flipbook-caption{text-align:center;padding:14px 6px 6px;}
+  .flipbook-caption .cat{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--ink-soft);}
+  .flipbook-caption h3{margin:2px 0 4px;font-size:1.2rem;font-family:'Baloo 2',system-ui,sans-serif;}
+  .flipbook-caption p{margin:0;font-size:0.9rem;color:var(--ink-soft);line-height:1.4;}
+  .flipbook-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;}
+  #fb-dots{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:140px;}
+  #fb-dots .fbd{width:6px;height:6px;border-radius:50%;background:var(--line);}
+  #fb-dots .fbd.done{background:var(--yellow-dark);}
+
   .modal-overlay{
     position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;
     align-items:flex-end;justify-content:center;z-index:50;
@@ -287,6 +322,7 @@
   </section>
 
   <section id="screen-module" class="screen">
+    <div id="stage-banner"></div>
     <div id="progress-wrap">
       <div id="progress-label"></div>
       <div id="progress-bar"><div id="progress-fill" style="width:0%"></div></div>
@@ -354,6 +390,23 @@
     </div>
   </section>
 
+  <section id="screen-storyboard" class="screen">
+    <div class="flipbook-card">
+      <div class="flipbook-page" id="flipbook-page"></div>
+      <div class="flipbook-caption">
+        <div class="cat" id="fb-page-num"></div>
+        <h3 id="fb-title"></h3>
+        <p id="fb-caption"></p>
+      </div>
+      <div class="flipbook-nav">
+        <button class="btn btn-secondary" id="fb-prev">← Prev</button>
+        <div id="fb-dots"></div>
+        <button class="btn btn-primary" id="fb-next">Next →</button>
+      </div>
+      <button class="btn btn-secondary" id="fb-close" style="width:100%;margin-top:10px;">Back to guide</button>
+    </div>
+  </section>
+
 </main>
 
 <div class="modal-overlay hidden" id="detail-overlay">
@@ -411,6 +464,8 @@
   let renderedChromeStepId = null;
   let playthroughTimer = null;
   let activeDetailOptionId = null; // which "part" tile's detail panel is currently expanded
+  let toastTimer = null;
+  let toastShowTimer = null;
 
   function loadState(){
     try{
@@ -511,7 +566,7 @@
 
   function buildHouseSVG(choices){
     choices = choices || {};
-    const W = 320, H = 210, groundY = 172;
+    const W = 480, H = 210, groundY = 172;
     const parts = ['<line x1="0" y1="' + groundY + '" x2="' + W + '" y2="' + groundY + '" stroke="#B8C2A6" stroke-width="4"/>'];
 
     if(choices.existing_structure === undefined){
@@ -556,20 +611,31 @@
 
     const wallStepId = choices.exterior_cladding !== undefined ? 'exterior_cladding' : 'wall_structure_material';
     const wallColor = CLADDING_COLOR[choices.exterior_cladding] || '#D8D2C2';
-    const wallH = 62;
-    const wallTop = baseY - wallH;
-    let wallSVG = '<rect x="115" y="' + wallTop + '" width="90" height="' + wallH + '" fill="' + wallColor + '" stroke="#00000022"/>';
-    wallSVG += '<rect x="150" y="' + (baseY-24) + '" width="20" height="24" fill="#5B4636"/>';
+    const floorH = 54;
+    const floors = choices.stories === 'two' ? 2 : 1;
+    let wallSVG = '';
+    let floorTop = baseY;
+    for(let f = 0; f < floors; f++){
+      const bandTop = floorTop - floorH;
+      wallSVG += '<rect x="115" y="' + bandTop + '" width="90" height="' + floorH + '" fill="' + wallColor + '" stroke="#00000022"/>';
+      if(f > 0) wallSVG += '<line x1="115" y1="' + floorTop + '" x2="205" y2="' + floorTop + '" stroke="#00000033"/>';
+      floorTop = bandTop;
+    }
+    const wallTop = floorTop; // top of the topmost floor, roof sits here
+    wallSVG += '<rect x="150" y="' + (baseY-24) + '" width="20" height="24" fill="#5B4636"/>'; // ground-floor door
     parts.push(hotspot(wallStepId, wallSVG));
 
     if(choices.window_glazing){
-      let winSVG = '<rect x="115" y="' + wallTop + '" width="90" height="' + wallH + '" fill="#000" fill-opacity="0"/>';
-      if(choices.window_glazing === 'large_solar_glazing'){
-        winSVG += '<rect x="122" y="' + (wallTop+10) + '" width="26" height="26" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/>';
-      } else if(choices.window_glazing === 'high_performance_small'){
-        winSVG += '<rect x="126" y="' + (wallTop+14) + '" width="14" height="14" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/><rect x="182" y="' + (wallTop+14) + '" width="14" height="14" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/>';
-      } else {
-        winSVG += '<rect x="124" y="' + (wallTop+12) + '" width="18" height="18" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/><rect x="180" y="' + (wallTop+12) + '" width="18" height="18" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/>';
+      let winSVG = '<rect x="115" y="' + wallTop + '" width="90" height="' + (baseY - wallTop) + '" fill="#000" fill-opacity="0"/>';
+      for(let f = 0; f < floors; f++){
+        const floorWinY = baseY - floorH * (f + 1);
+        if(choices.window_glazing === 'large_solar_glazing'){
+          winSVG += '<rect x="122" y="' + (floorWinY+10) + '" width="26" height="26" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/>';
+        } else if(choices.window_glazing === 'high_performance_small'){
+          winSVG += '<rect x="126" y="' + (floorWinY+14) + '" width="14" height="14" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/><rect x="182" y="' + (floorWinY+14) + '" width="14" height="14" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/>';
+        } else {
+          winSVG += '<rect x="124" y="' + (floorWinY+12) + '" width="18" height="18" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/><rect x="180" y="' + (floorWinY+12) + '" width="18" height="18" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/>';
+        }
       }
       parts.push(hotspot('window_glazing', winSVG));
     }
@@ -607,10 +673,27 @@
       parts.push(hotspot('extras', '<rect x="215" y="' + (groundY-40) + '" width="40" height="40" fill="#000" fill-opacity="0"/><rect x="222" y="' + (groundY-22) + '" width="24" height="22" fill="#7C5A3C"/><polygon points="220,' + (groundY-22) + ' 234,' + (groundY-34) + ' 248,' + (groundY-22) + '" fill="#5B4636"/>'));
     }
     if(extras.indexOf('pool') !== -1){
-      parts.push(hotspot('extras', '<rect x="234" y="' + (groundY-20) + '" width="80" height="26" fill="#000" fill-opacity="0"/><rect x="238" y="' + (groundY-14) + '" width="72" height="16" rx="6" fill="#5FB8D9"/><path d="M242 ' + (groundY-14) + ' q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0" stroke="#fff" fill="none" stroke-width="1.4" opacity="0.75"/>'));
+      parts.push(hotspot('extras', '<rect x="234" y="' + (groundY-20) + '" width="76" height="26" fill="#000" fill-opacity="0"/><rect x="238" y="' + (groundY-14) + '" width="68" height="16" rx="6" fill="#5FB8D9"/><path d="M242 ' + (groundY-14) + ' q4 -3 8 0 q4 3 8 0 q4 -3 8 0 q4 3 8 0" stroke="#fff" fill="none" stroke-width="1.4" opacity="0.75"/>'));
     }
     if(extras.indexOf('tennis_court') !== -1){
       parts.push(hotspot('extras', '<rect x="2" y="' + (groundY-20) + '" width="78" height="26" fill="#000" fill-opacity="0"/><rect x="6" y="' + (groundY-14) + '" width="70" height="14" fill="#2E8B57"/><line x1="41" y1="' + (groundY-14) + '" x2="41" y2="' + groundY + '" stroke="#fff" stroke-width="1"/>'));
+    }
+    // Wider right-margin extras (W now 440 gives room for a fourth "row" of icons)
+    if(extras.indexOf('gym') !== -1){
+      parts.push(hotspot('extras', '<rect x="315" y="' + (groundY-40) + '" width="34" height="40" fill="#000" fill-opacity="0"/><circle cx="325" cy="' + (groundY-16) + '" r="7" fill="#3E4A50"/><circle cx="341" cy="' + (groundY-16) + '" r="7" fill="#3E4A50"/><rect x="325" y="' + (groundY-19) + '" width="16" height="6" fill="#5F6C74"/>'));
+    }
+    if(extras.indexOf('garage') !== -1){
+      parts.push(hotspot('extras', '<rect x="352" y="' + (groundY-40) + '" width="36" height="40" fill="#000" fill-opacity="0"/><rect x="356" y="' + (groundY-32) + '" width="28" height="32" fill="#C7CDD1"/><line x1="356" y1="' + (groundY-22) + '" x2="384" y2="' + (groundY-22) + '" stroke="#7C8B95"/><line x1="356" y1="' + (groundY-12) + '" x2="384" y2="' + (groundY-12) + '" stroke="#7C8B95"/>'));
+    }
+    if(extras.indexOf('home_office') !== -1){
+      parts.push(hotspot('extras', '<rect x="392" y="' + (groundY-38) + '" width="26" height="38" fill="#000" fill-opacity="0"/><rect x="395" y="' + (groundY-24) + '" width="20" height="24" fill="#D8D2C2"/><polygon points="393,' + (groundY-24) + ' 405,' + (groundY-33) + ' 417,' + (groundY-24) + '" fill="#5B4636"/><rect x="399" y="' + (groundY-18) + '" width="10" height="10" fill="#BFE3F2" stroke="#5B4636"/>'));
+    }
+    if(extras.indexOf('outdoor_kitchen') !== -1){
+      parts.push(hotspot('extras', '<rect x="418" y="' + (groundY-24) + '" width="20" height="24" fill="#000" fill-opacity="0"/><rect x="420" y="' + (groundY-16) + '" width="16" height="12" fill="#5F6C74"/><path d="M422 ' + (groundY-18) + ' q2 -6 4 0 M428 ' + (groundY-18) + ' q2 -6 4 0" stroke="#B8C2A6" fill="none" stroke-width="1.5"/>'));
+    }
+    if(extras.indexOf('guest_suite') !== -1){
+      parts.push(hotspot('extras', '<rect x="442" y="' + (groundY-42) + '" width="36" height="42" fill="#000" fill-opacity="0"/>' +
+        '<rect x="445" y="' + (groundY-30) + '" width="30" height="30" fill="#D8D2C2"/><polygon points="442,' + (groundY-30) + ' 460,' + (groundY-42) + ' 478,' + (groundY-30) + '" fill="#5B4636"/><rect x="455" y="' + (groundY-22) + '" width="10" height="12" fill="#5B4636"/>'));
     }
 
     return wrap(parts);
@@ -650,6 +733,7 @@
         <div class="card-btn-row">
           <button class="btn btn-primary open-btn">${ms ? (ms.completed ? 'View build sheet' : 'Continue building') : 'Start building'}</button>
           <button class="btn btn-accent quick-btn">⚡ Quick preview</button>
+          ${mod.storyboard ? '<button class="btn btn-secondary storyboard-btn">📖 See how it\'s built</button>' : ''}
         </div>
       `;
       card.querySelector('.open-btn').addEventListener('click', () => openModule(mod.id));
@@ -659,6 +743,8 @@
         if(hasProgress && !confirm('This replaces your current progress on "' + mod.title + '" with default choices for a quick animated preview. Continue?')) return;
         startPlaythrough(mod);
       });
+      const storyboardBtn = card.querySelector('.storyboard-btn');
+      if(storyboardBtn) storyboardBtn.addEventListener('click', () => openStoryboard(mod));
       list.appendChild(card);
       if(mod.id === 'house') renderHouseGraphicInto(graphicId, ms ? ms.choices : {}, true);
     });
@@ -705,15 +791,21 @@
 
   function showWatchForToast(step, items){
     const toast = document.getElementById('wf-toast');
+    clearTimeout(toastTimer);
+    clearTimeout(toastShowTimer);
     if(!items || items.length === 0){ toast.classList.remove('show'); return; }
     document.getElementById('wf-toast-title').textContent = 'Before you decide: ' + step.title;
     document.getElementById('wf-toast-list').innerHTML = items.map((i) => '<li>' + i + '</li>').join('');
     // Force the slide-in to replay even if the toast was already showing for the previous step.
     toast.classList.remove('show');
     void toast.offsetWidth;
-    setTimeout(() => toast.classList.add('show'), 350);
+    toastShowTimer = setTimeout(() => toast.classList.add('show'), 350);
+    // Auto-dismiss after a while so it can never sit indefinitely over the choose buttons below it.
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 9000);
   }
   document.getElementById('wf-toast-close').addEventListener('click', () => {
+    clearTimeout(toastTimer);
+    clearTimeout(toastShowTimer);
     document.getElementById('wf-toast').classList.remove('show');
   });
 
@@ -780,6 +872,14 @@
     let idx = visible.findIndex((s) => s.id === ms.stepId);
     if(idx === -1){ idx = 0; ms.stepId = visible[0].id; }
     const step = visible[idx];
+
+    const banner = document.getElementById('stage-banner');
+    if(step.stage && mod.stageNames && mod.stageNames[step.stage]){
+      banner.style.display = 'flex';
+      banner.innerHTML = '<span class="stage-num">STAGE ' + step.stage + '/' + Object.keys(mod.stageNames).length + '</span> ' + mod.stageNames[step.stage];
+    } else {
+      banner.style.display = 'none';
+    }
     const stepChanged = renderedChromeStepId !== step.id;
 
     document.getElementById('progress-label').textContent = 'Step ' + (idx + 1) + ' of ' + visible.length + ' — ' + step.category;
@@ -946,8 +1046,77 @@
   function show(screenId){
     document.querySelectorAll('.screen').forEach((el) => el.classList.remove('active'));
     document.getElementById(screenId).classList.add('active');
-    if(screenId !== 'screen-module') document.getElementById('wf-toast').classList.remove('show');
+    if(screenId !== 'screen-module'){ clearTimeout(toastTimer); clearTimeout(toastShowTimer); document.getElementById('wf-toast').classList.remove('show'); }
   }
+
+  // =============================================================
+  // CONSTRUCTION FLIP-BOOK — a page-by-page picture book of the
+  // physical build sequence (demolition → excavation → survey →
+  // framing → ... → move-in), separate from the decision guide.
+  // Purely narrative: Prev/Next turns the page, no choices made.
+  //
+  // FLEXIBLE: pages are filtered by showIf(choices), same mechanism
+  // as decision steps, so e.g. the pool page only shows if a pool
+  // was actually picked, and there's a second-storey framing page
+  // only for a two-storey build.
+  // =============================================================
+  let storyboardIdx = 0;
+
+  function getVisibleStoryboardPages(mod, choices){
+    return mod.storyboard.filter((p) => !p.showIf || p.showIf(choices || {}));
+  }
+
+  function openStoryboard(mod){
+    currentModuleId = mod.id;
+    storyboardIdx = 0;
+    show('screen-storyboard');
+    document.getElementById('topbar-sub').textContent = mod.title + ' — how it\'s built';
+    const ms = state.modules[mod.id];
+    const pages = getVisibleStoryboardPages(mod, ms ? ms.choices : {});
+    const dots = document.getElementById('fb-dots');
+    dots.innerHTML = pages.map(() => '<span class="fbd"></span>').join('');
+    renderStoryboardPage(mod);
+  }
+
+  function renderStoryboardPage(mod){
+    const ms = state.modules[mod.id];
+    const choices = ms ? ms.choices : {};
+    const pages = getVisibleStoryboardPages(mod, choices);
+    if(storyboardIdx >= pages.length) storyboardIdx = pages.length - 1;
+    const p = pages[storyboardIdx];
+    const svg = typeof p.svg === 'function' ? p.svg(choices) : p.svg;
+    const pageEl = document.getElementById('flipbook-page');
+    pageEl.innerHTML = svg;
+    // restart the page-turn animation each time
+    pageEl.style.animation = 'none';
+    void pageEl.offsetWidth;
+    pageEl.style.animation = '';
+
+    document.getElementById('fb-page-num').textContent = 'Page ' + (storyboardIdx + 1) + ' of ' + pages.length;
+    document.getElementById('fb-title').textContent = p.title;
+    document.getElementById('fb-caption').textContent = p.caption;
+    Array.from(document.getElementById('fb-dots').children).forEach((d, di) => d.classList.toggle('done', di <= storyboardIdx));
+
+    document.getElementById('fb-prev').disabled = storyboardIdx === 0;
+    document.getElementById('fb-next').textContent = storyboardIdx === pages.length - 1 ? 'Done ✓' : 'Next →';
+  }
+
+  document.getElementById('fb-prev').addEventListener('click', () => {
+    const mod = getModule(currentModuleId);
+    if(!mod || storyboardIdx === 0) return;
+    storyboardIdx -= 1;
+    renderStoryboardPage(mod);
+  });
+  document.getElementById('fb-next').addEventListener('click', () => {
+    const mod = getModule(currentModuleId);
+    if(!mod) return;
+    const ms = state.modules[mod.id];
+    const pages = getVisibleStoryboardPages(mod, ms ? ms.choices : {});
+    if(storyboardIdx >= pages.length - 1){ renderHome(); return; }
+    storyboardIdx += 1;
+    renderStoryboardPage(mod);
+  });
+  document.getElementById('fb-close').addEventListener('click', renderHome);
 
   // =============================================================
   // TAPPABLE GRAPHIC PARTS — clicking a piece of the house picture
