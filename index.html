@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4C9A2A">
+<title>Build Guides</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icons/icon.svg">
+<!-- ASSUMPTION: loading Google Fonts from CDN for the chunky "toy" display
+     face. If you ever need a fully offline-from-first-load PWA, swap this
+     for a system-font stack — everything else works without it. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green:#4C9A2A;   --green-dark:#387420;
+    --red:#D93B3B;     --red-dark:#B92E2E;
+    --yellow:#F5C518;  --yellow-dark:#D9AE0E;
+    --blue:#2C6EBE;    --blue-dark:#22579A;
+    --gray:#7C8B95;    --gray-dark:#5F6C74;
+    --canvas:#F2F2ED;
+    --card:#FFFFFF;
+    --ink:#1C2B1E;
+    --ink-soft:#51605A;
+    --line:#E2E1D8;
+    --radius:14px;
+    --shadow: 0 3px 0 rgba(0,0,0,0.15);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--canvas);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+    min-height:100vh;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  h1,h2,h3,.brand{font-family:'Baloo 2',system-ui,sans-serif;}
+  button{font-family:inherit;}
+
+  /* ---------------- Top bar ---------------- */
+  #topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;background:var(--green);color:#fff;
+    box-shadow:var(--shadow);
+  }
+  #topbar .brand{font-weight:800;font-size:1.25rem;letter-spacing:0.3px;}
+  #topbar .brand small{display:block;font-family:'Inter';font-weight:500;font-size:0.68rem;opacity:0.85;}
+  #gear-btn, .icon-btn{
+    background:rgba(255,255,255,0.18);border:none;color:#fff;
+    width:40px;height:40px;border-radius:10px;font-size:1.1rem;cursor:pointer;
+  }
+
+  main{max-width:640px;margin:0 auto;padding:16px;}
+  .screen{display:none;}
+  .screen.active{display:block;}
+
+  /* ---------------- Home / module cards ---------------- */
+  .module-card{
+    background:var(--card);border-radius:var(--radius);
+    padding:18px;margin-bottom:14px;box-shadow:var(--shadow);
+    border:3px solid var(--line);
+  }
+  .module-card .plate{
+    height:10px;border-radius:6px;margin-bottom:12px;
+  }
+  .module-card h2{margin:0 0 4px;font-size:1.3rem;}
+  .module-card p{margin:0 0 12px;color:var(--ink-soft);font-size:0.92rem;}
+  .module-card .meta{font-size:0.8rem;color:var(--ink-soft);margin-bottom:10px;}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    border:none;border-radius:10px;padding:10px 16px;font-weight:700;
+    cursor:pointer;font-size:0.95rem;box-shadow:var(--shadow);
+  }
+  .btn-primary{background:var(--green);color:#fff;}
+  .btn-secondary{background:var(--card);color:var(--ink);border:2px solid var(--line);box-shadow:none;}
+  .btn:active{transform:translateY(2px);box-shadow:none;}
+  .empty-note{text-align:center;color:var(--ink-soft);font-size:0.85rem;margin-top:24px;}
+
+  /* ---------------- Brick tray (build progress) ---------------- */
+  #brick-tray{
+    display:flex;gap:6px;overflow-x:auto;padding:10px 4px 14px;
+    scrollbar-width:none;
+  }
+  #brick-tray::-webkit-scrollbar{display:none;}
+  .tray-brick{
+    flex:0 0 auto;min-width:58px;height:40px;border-radius:6px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:0.62rem;font-weight:700;color:#fff;text-align:center;
+    padding:2px 4px;position:relative;line-height:1.05;
+    animation:snap 0.28s ease-out;
+  }
+  .tray-brick::before{
+    content:'';position:absolute;top:-5px;left:8px;width:8px;height:8px;
+    border-radius:50%;background:inherit;filter:brightness(0.85);
+  }
+  .tray-brick::after{
+    content:'';position:absolute;top:-5px;right:8px;width:8px;height:8px;
+    border-radius:50%;background:inherit;filter:brightness(0.85);
+  }
+  @keyframes snap{
+    0%{transform:scale(0.5) translateY(-10px);opacity:0;}
+    70%{transform:scale(1.08) translateY(0);opacity:1;}
+    100%{transform:scale(1);}
+  }
+
+  /* ---------------- Progress bar ---------------- */
+  #progress-wrap{margin-bottom:6px;}
+  #progress-label{font-size:0.8rem;color:var(--ink-soft);margin-bottom:6px;font-weight:600;}
+  #progress-bar{height:8px;border-radius:5px;background:var(--line);overflow:hidden;}
+  #progress-fill{height:100%;background:var(--green);border-radius:5px;transition:width 0.3s ease;}
+
+  /* ---------------- Step card ---------------- */
+  .step-card{
+    background:var(--card);border-radius:var(--radius);padding:20px;
+    box-shadow:var(--shadow);border:3px solid var(--line);margin-top:6px;
+  }
+  .step-eyebrow{font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--ink-soft);}
+  .step-title{margin:2px 0 8px;font-size:1.4rem;}
+  .step-prompt{margin:0 0 18px;color:var(--ink-soft);font-size:0.95rem;line-height:1.4;}
+
+  /* ---------------- Watch-for checklist (per-step) ---------------- */
+  .watchfor{
+    border:2px dashed var(--gray);border-radius:10px;background:#F7F6EF;
+    margin-bottom:18px;padding:0;
+  }
+  .watchfor summary{
+    list-style:none;cursor:pointer;padding:10px 14px;font-weight:700;
+    font-size:0.88rem;color:var(--gray-dark);display:flex;align-items:center;gap:8px;
+  }
+  .watchfor summary::-webkit-details-marker{display:none;}
+  .watchfor .watchfor-icon{font-size:0.95rem;}
+  .watchfor .chevron{margin-left:auto;transition:transform 0.2s ease;}
+  .watchfor[open] .chevron{transform:rotate(180deg);}
+  .watchfor ul{margin:0;padding:0 16px 14px 30px;font-size:0.85rem;color:var(--ink-soft);line-height:1.45;}
+  .watchfor ul li{margin-bottom:4px;}
+  .watchfor.empty{display:none;}
+
+  .option{
+    border-radius:12px;margin-bottom:14px;overflow:hidden;
+    border:3px solid var(--line);
+  }
+  .option.chosen{border-color:var(--ink);}
+  .option-head{
+    display:flex;align-items:center;gap:10px;padding:12px 14px;color:#fff;font-weight:700;
+    position:relative;
+  }
+  .stud-row{display:flex;gap:4px;}
+  .stud{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,0.55);}
+  .option-label{font-size:1.02rem;}
+  .option-body{padding:12px 14px 14px;background:#FBFBF8;}
+  .tradeoffs{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;}
+  .tradeoff-col{flex:1;min-width:130px;}
+  .tradeoff-col h4{margin:0 0 4px;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.4px;}
+  .tradeoff-col.pros h4{color:var(--green-dark);}
+  .tradeoff-col.cons h4{color:var(--red-dark);}
+  .tradeoff-col ul{margin:0;padding-left:16px;font-size:0.85rem;color:var(--ink-soft);line-height:1.35;}
+  .choose-btn{width:100%;background:var(--ink);color:#fff;border:none;border-radius:8px;
+    padding:9px;font-weight:700;cursor:pointer;font-size:0.88rem;}
+  .choose-btn.is-chosen{background:var(--green-dark);}
+
+  .cat-Planning .option-head, .cat-Planning{background:var(--gray);}
+  .cat-Site .option-head, .cat-Site{background:var(--green);}
+  .cat-Structure .option-head, .cat-Structure{background:var(--red);}
+  .cat-Envelope .option-head, .cat-Envelope{background:var(--blue);}
+  .cat-Systems .option-head, .cat-Systems{background:var(--yellow);}
+
+  .step-nav{display:flex;justify-content:space-between;margin-top:16px;gap:10px;}
+
+  /* ---------------- Summary ---------------- */
+  .summary-item{display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);}
+  .summary-swatch{width:14px;height:14px;border-radius:4px;flex:0 0 auto;margin-top:4px;}
+  .summary-item h4{margin:0;font-size:0.95rem;}
+  .summary-item p{margin:2px 0 0;font-size:0.85rem;color:var(--ink-soft);}
+  #summary-export{width:100%;height:160px;margin-top:14px;border-radius:10px;border:2px solid var(--line);
+    padding:10px;font-family:monospace;font-size:0.78rem;resize:vertical;}
+
+  /* ---------------- Modal ---------------- */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;
+    align-items:flex-end;justify-content:center;z-index:50;
+  }
+  .modal-overlay.hidden{display:none;}
+  .modal{
+    background:var(--card);border-radius:18px 18px 0 0;padding:20px;width:100%;
+    max-width:640px;max-height:85vh;overflow-y:auto;
+  }
+  .modal h3{margin:0 0 6px;}
+  .modal p.note{font-size:0.82rem;color:var(--ink-soft);margin:0 0 14px;line-height:1.4;}
+  .modal label{display:block;font-size:0.82rem;font-weight:600;margin-bottom:4px;margin-top:12px;}
+  .modal input{width:100%;padding:10px;border-radius:8px;border:2px solid var(--line);font-size:0.9rem;}
+  #sync-status{font-size:0.82rem;margin-top:10px;color:var(--ink-soft);min-height:1.2em;}
+  .modal-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+  .danger-zone{margin-top:22px;padding-top:14px;border-top:1px solid var(--line);}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="brand">🧱 Build Guides<small id="topbar-sub">Home</small></div>
+  <button id="gear-btn" title="Sync settings">⚙️</button>
+</div>
+
+<main>
+
+  <!-- ================= HOME ================= -->
+  <section id="screen-home" class="screen active">
+    <div id="module-list"></div>
+  </section>
+
+  <!-- ================= MODULE / STEP THROUGH ================= -->
+  <section id="screen-module" class="screen">
+    <div id="progress-wrap">
+      <div id="progress-label"></div>
+      <div id="progress-bar"><div id="progress-fill" style="width:0%"></div></div>
+    </div>
+    <div id="brick-tray"></div>
+    <div class="step-card">
+      <div class="step-eyebrow" id="step-eyebrow"></div>
+      <h2 class="step-title" id="step-title"></h2>
+      <p class="step-prompt" id="step-prompt"></p>
+      <details class="watchfor" id="watchfor-box">
+        <summary><span class="watchfor-icon">⚠️</span> Check before deciding <span class="chevron">▾</span></summary>
+        <ul id="watchfor-list"></ul>
+      </details>
+      <div id="options-list"></div>
+      <div class="step-nav">
+        <button class="btn btn-secondary" id="back-btn">← Back</button>
+        <button class="btn btn-secondary" id="home-btn">Save &amp; exit</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SUMMARY ================= -->
+  <section id="screen-summary" class="screen">
+    <div class="step-card">
+      <div class="step-eyebrow">Instruction booklet</div>
+      <h2 class="step-title" id="summary-title"></h2>
+      <p class="step-prompt">Every brick you placed, in order, with the trade-off you accepted.</p>
+      <div id="summary-list"></div>
+      <textarea id="summary-export" readonly></textarea>
+      <div class="modal-row">
+        <button class="btn btn-primary" id="copy-summary-btn">Copy as text</button>
+        <button class="btn btn-secondary" id="restart-module-btn">Start over</button>
+        <button class="btn btn-secondary" id="summary-home-btn">Back to guides</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ================= SETTINGS / SYNC MODAL ================= -->
+<div class="modal-overlay hidden" id="settings-overlay">
+  <div class="modal">
+    <h3>Sync across devices</h3>
+    <p class="note">
+      This app has no server of its own. It uses a private GitHub Gist as a tiny
+      free database so your progress can follow you between phone and laptop.
+      Create a <strong>fine-grained personal access token</strong> scoped only to
+      "Gists: Read and write" at github.com/settings/tokens, and paste it below.
+      It's stored only in this browser's local storage — never sent anywhere
+      except api.github.com.
+    </p>
+    <label for="pat-input">GitHub token</label>
+    <input type="password" id="pat-input" placeholder="ghp_... or fine-grained token">
+    <label for="gist-input">Gist ID (leave blank to create one)</label>
+    <input type="text" id="gist-input" placeholder="e.g. 3b2f1a9c...">
+    <div class="modal-row">
+      <button class="btn btn-primary" id="save-settings-btn">Save</button>
+      <button class="btn btn-secondary" id="sync-now-btn">Sync now</button>
+      <button class="btn btn-secondary" id="close-settings-btn">Close</button>
+    </div>
+    <div id="sync-status"></div>
+    <div class="danger-zone">
+      <button class="btn btn-secondary" id="reset-all-btn">Reset all progress on this device</button>
+    </div>
+  </div>
+</div>
+
+<script src="./modules/house.js" defer></script>
+<script>
+/* =============================================================
+   ENGINE — this section should not need edits when you add a
+   new module file (modules/whatever.js). It just reads whatever
+   is in window.LEGO_MODULES.
+============================================================= */
+(function(){
+  'use strict';
+
+  const STORAGE_KEY = 'legoGuides.state.v1';
+  const SETTINGS_KEY = 'legoGuides.settings.v1';
+  const CATEGORY_VAR = { Planning:'--gray', Site:'--green', Structure:'--red', Envelope:'--blue', Systems:'--yellow' };
+
+  // ---------- state ----------
+  // shape: { updatedAt, modules: { [moduleId]: { choices:{stepId:optionId}, stepId, completed } } }
+  let state = loadState();
+  let currentModuleId = null;
+  let syncTimer = null;
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw) return JSON.parse(raw);
+    }catch(e){ console.warn('Could not read saved progress', e); }
+    return { updatedAt: 0, modules: {} };
+  }
+
+  function saveState(pushToRemote){
+    state.updatedAt = Date.now();
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    catch(e){ console.warn('Could not save progress locally', e); }
+    if(pushToRemote !== false) scheduleSync();
+  }
+
+  function loadSettings(){
+    try{ return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); }
+    catch(e){ return {}; }
+  }
+  function saveSettings(s){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
+
+  function getModule(id){ return (window.LEGO_MODULES || []).find((m) => m.id === id); }
+
+  function getVisibleSteps(mod, choices){
+    return mod.steps.filter((s) => !s.showIf || s.showIf(choices));
+  }
+
+  function resolve(valueOrFn, choices){
+    return typeof valueOrFn === 'function' ? valueOrFn(choices) : valueOrFn;
+  }
+
+  // ---------- navigation helpers ----------
+  function ensureModuleState(id){
+    if(!state.modules[id]) state.modules[id] = { choices:{}, stepId:null, completed:false };
+    return state.modules[id];
+  }
+
+  function chooseOption(mod, step, optionId){
+    const ms = ensureModuleState(mod.id);
+    ms.choices[step.id] = optionId;
+    // Editing an earlier answer can invalidate downstream branch-dependent
+    // steps/options, so clear anything after this step's position in the
+    // FULL (unfiltered) step order — the user will simply re-answer it.
+    const fullIdx = mod.steps.findIndex((s) => s.id === step.id);
+    mod.steps.slice(fullIdx + 1).forEach((s) => { delete ms.choices[s.id]; });
+
+    const visible = getVisibleSteps(mod, ms.choices);
+    const posInVisible = visible.findIndex((s) => s.id === step.id);
+    if(posInVisible === visible.length - 1){
+      ms.completed = true;
+      ms.stepId = null;
+      saveState();
+      renderSummary(mod);
+    } else {
+      ms.stepId = visible[posInVisible + 1].id;
+      ms.completed = false;
+      saveState();
+      renderModuleStep(mod);
+    }
+  }
+
+  function goBack(mod){
+    const ms = ensureModuleState(mod.id);
+    const visible = getVisibleSteps(mod, ms.choices);
+    const idx = visible.findIndex((s) => s.id === ms.stepId);
+    if(idx > 0){
+      ms.stepId = visible[idx - 1].id;
+      saveState();
+      renderModuleStep(mod);
+    }
+  }
+
+  // ---------- rendering: home ----------
+  function renderHome(){
+    document.getElementById('topbar-sub').textContent = 'Home';
+    show('screen-home');
+    const list = document.getElementById('module-list');
+    list.innerHTML = '';
+    const mods = window.LEGO_MODULES || [];
+    if(mods.length === 0){
+      list.innerHTML = '<p class="empty-note">No guides loaded yet — check that modules/*.js is included.</p>';
+      return;
+    }
+    mods.forEach((mod) => {
+      const ms = state.modules[mod.id];
+      const visible = ms ? getVisibleSteps(mod, ms.choices) : mod.steps;
+      const answered = ms ? Object.keys(ms.choices).length : 0;
+      const card = document.createElement('div');
+      card.className = 'module-card';
+      card.innerHTML = `
+        <div class="plate" style="background:${mod.baseColor}"></div>
+        <h2>${mod.title}</h2>
+        <p>${mod.tagline}</p>
+        <div class="meta">${ms ? (ms.completed ? 'Completed — ' + answered + ' bricks placed' : answered + ' / ' + visible.length + ' bricks placed') : mod.steps.length + ' decisions to make'}</div>
+        <button class="btn btn-primary open-btn">${ms ? (ms.completed ? 'View build sheet' : 'Continue building') : 'Start building'}</button>
+      `;
+      card.querySelector('.open-btn').addEventListener('click', () => openModule(mod.id));
+      list.appendChild(card);
+    });
+  }
+
+  function openModule(id){
+    const mod = getModule(id);
+    if(!mod) return;
+    currentModuleId = id;
+    const ms = ensureModuleState(id);
+    if(ms.completed){ renderSummary(mod); return; }
+    if(!ms.stepId){
+      const visible = getVisibleSteps(mod, ms.choices);
+      ms.stepId = visible[0].id;
+    }
+    renderModuleStep(mod);
+  }
+
+  // ---------- rendering: brick tray ----------
+  function renderTray(mod, choices, uptoStepId){
+    const tray = document.getElementById('brick-tray');
+    tray.innerHTML = '';
+    mod.steps.forEach((s) => {
+      if(s.id === uptoStepId) return; // don't show the in-progress one yet
+      if(choices[s.id] === undefined) return;
+      const opts = resolve(s.options, choices);
+      const opt = (Array.isArray(opts) ? opts : []).find((o) => o.id === choices[s.id]);
+      const chip = document.createElement('div');
+      chip.className = 'tray-brick cat-' + s.category;
+      chip.style.background = `var(${CATEGORY_VAR[s.category] || '--gray'})`;
+      chip.title = s.title + ': ' + (opt ? opt.label : '');
+      chip.textContent = opt ? opt.label : s.title;
+      tray.appendChild(chip);
+    });
+  }
+
+  // ---------- rendering: step ----------
+  function renderModuleStep(mod){
+    document.getElementById('topbar-sub').textContent = mod.title;
+    show('screen-module');
+    const ms = ensureModuleState(mod.id);
+    const visible = getVisibleSteps(mod, ms.choices);
+    let idx = visible.findIndex((s) => s.id === ms.stepId);
+    if(idx === -1){ idx = 0; ms.stepId = visible[0].id; }
+    const step = visible[idx];
+
+    document.getElementById('progress-label').textContent = `Step ${idx + 1} of ${visible.length} — ${step.category}`;
+    document.getElementById('progress-fill').style.width = Math.round((idx / visible.length) * 100) + '%';
+
+    renderTray(mod, ms.choices, step.id);
+
+    document.getElementById('step-eyebrow').textContent = step.category;
+    document.getElementById('step-title').textContent = step.title;
+    document.getElementById('step-prompt').textContent = resolve(step.prompt, ms.choices);
+
+    const watchBox = document.getElementById('watchfor-box');
+    const watchList = document.getElementById('watchfor-list');
+    const watchItems = resolve(step.watchFor, ms.choices) || [];
+    watchList.innerHTML = watchItems.map((item) => `<li>${item}</li>`).join('');
+    watchBox.classList.toggle('empty', watchItems.length === 0);
+    watchBox.open = false; // collapsed by default each time a new step is shown
+
+    const optsWrap = document.getElementById('options-list');
+    optsWrap.innerHTML = '';
+    const options = resolve(step.options, ms.choices) || [];
+    const chosenId = ms.choices[step.id];
+
+    options.forEach((opt) => {
+      const isChosen = opt.id === chosenId;
+      const card = document.createElement('div');
+      card.className = 'option cat-' + step.category + (isChosen ? ' chosen' : '');
+      card.innerHTML = `
+        <div class="option-head">
+          <div class="stud-row"><span class="stud"></span><span class="stud"></span></div>
+          <div class="option-label">${opt.label}</div>
+        </div>
+        <div class="option-body">
+          <div class="tradeoffs">
+            <div class="tradeoff-col pros"><h4>Pros</h4><ul>${opt.pros.map((p) => `<li>${p}</li>`).join('')}</ul></div>
+            <div class="tradeoff-col cons"><h4>Trade-offs</h4><ul>${opt.cons.map((c) => `<li>${c}</li>`).join('')}</ul></div>
+          </div>
+          <button class="choose-btn ${isChosen ? 'is-chosen' : ''}">${isChosen ? '✓ Chosen — placed in your build' : 'Build with this →'}</button>
+        </div>
+      `;
+      card.querySelector('.choose-btn').addEventListener('click', () => chooseOption(mod, step, opt.id));
+      optsWrap.appendChild(card);
+    });
+
+    document.getElementById('back-btn').disabled = idx === 0;
+    document.getElementById('back-btn').onclick = () => goBack(mod);
+    document.getElementById('home-btn').onclick = renderHome;
+  }
+
+  // ---------- rendering: summary ----------
+  function renderSummary(mod){
+    document.getElementById('topbar-sub').textContent = mod.title + ' — done';
+    show('screen-summary');
+    const ms = ensureModuleState(mod.id);
+    document.getElementById('summary-title').textContent = mod.title + ': your build sheet';
+    const list = document.getElementById('summary-list');
+    list.innerHTML = '';
+    let exportText = `${mod.title} — build sheet\n${'='.repeat(mod.title.length + 14)}\n\n`;
+
+    mod.steps.forEach((s) => {
+      const choiceId = ms.choices[s.id];
+      if(choiceId === undefined) return;
+      const opts = resolve(s.options, ms.choices) || [];
+      const opt = opts.find((o) => o.id === choiceId);
+      if(!opt) return;
+      const row = document.createElement('div');
+      row.className = 'summary-item';
+      row.innerHTML = `
+        <div class="summary-swatch" style="background:var(${CATEGORY_VAR[s.category] || '--gray'})"></div>
+        <div>
+          <h4>${s.title}: ${opt.label}</h4>
+          <p>${opt.pros[0] || ''}${opt.cons[0] ? ' — trade-off: ' + opt.cons[0] : ''}</p>
+        </div>
+      `;
+      list.appendChild(row);
+      exportText += `[${s.category}] ${s.title}: ${opt.label}\n  + ${opt.pros.join('; ')}\n  - ${opt.cons.join('; ')}\n\n`;
+    });
+
+    document.getElementById('summary-export').value = exportText;
+
+    document.getElementById('copy-summary-btn').onclick = () => {
+      navigator.clipboard.writeText(exportText).then(() => {
+        const btn = document.getElementById('copy-summary-btn');
+        const orig = btn.textContent;
+        btn.textContent = 'Copied ✓';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      }).catch(() => alert('Could not copy automatically — select the text box above and copy manually.'));
+    };
+    document.getElementById('restart-module-btn').onclick = () => {
+      if(confirm('Clear all answers for "' + mod.title + '" and start this guide over?')){
+        delete state.modules[mod.id];
+        saveState();
+        openModule(mod.id);
+      }
+    };
+    document.getElementById('summary-home-btn').onclick = renderHome;
+  }
+
+  function show(screenId){
+    document.querySelectorAll('.screen').forEach((el) => el.classList.remove('active'));
+    document.getElementById(screenId).classList.add('active');
+  }
+
+  // =============================================================
+  // GITHUB GIST SYNC (optional, cross-device)
+  // ASSUMPTION: the GitHub REST API's CORS support is what makes this
+  // work directly from a static page with no backend of your own. If
+  // requests fail with a CORS error in the console, that's the thing
+  // to screenshot — it would mean GitHub has changed this behavior and
+  // a small proxy would be needed.
+  // =============================================================
+  const GIST_FILENAME = 'lego-build-guides-progress.json';
+
+  async function ghFetch(path, opts){
+    const settings = loadSettings();
+    if(!settings.token) throw new Error('No token saved yet — open Settings (⚙️) first.');
+    const res = await fetch('https://api.github.com' + path, Object.assign({}, opts, {
+      headers: Object.assign({
+        'Authorization': 'token ' + settings.token,
+        'Accept': 'application/vnd.github+json',
+      }, (opts && opts.headers) || {}),
+    }));
+    if(!res.ok){
+      const body = await res.text().catch(() => '');
+      throw new Error('GitHub API ' + res.status + ': ' + body.slice(0, 200));
+    }
+    return res.json();
+  }
+
+  async function createGist(){
+    const data = await ghFetch('/gists', {
+      method: 'POST',
+      body: JSON.stringify({
+        description: 'Lego Build Guides — progress store',
+        public: false,
+        files: { [GIST_FILENAME]: { content: JSON.stringify(state) } },
+      }),
+    });
+    const settings = loadSettings();
+    settings.gistId = data.id;
+    saveSettings(settings);
+    document.getElementById('gist-input').value = data.id;
+    return data.id;
+  }
+
+  async function pushToGist(){
+    const settings = loadSettings();
+    if(!settings.gistId){ await createGist(); return; }
+    await ghFetch('/gists/' + settings.gistId, {
+      method: 'PATCH',
+      body: JSON.stringify({ files: { [GIST_FILENAME]: { content: JSON.stringify(state) } } }),
+    });
+  }
+
+  async function pullFromGist(){
+    const settings = loadSettings();
+    if(!settings.gistId) return null;
+    const data = await ghFetch('/gists/' + settings.gistId, { method: 'GET' });
+    const file = data.files && data.files[GIST_FILENAME];
+    if(!file) return null;
+    return JSON.parse(file.content);
+  }
+
+  function scheduleSync(){
+    const settings = loadSettings();
+    if(!settings.token || !settings.gistId) return; // sync not configured — local-only is fine
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => { pushToGist().catch((e) => console.warn('Background sync failed', e)); }, 2000);
+  }
+
+  async function syncNow(){
+    const statusEl = document.getElementById('sync-status');
+    statusEl.textContent = 'Syncing…';
+    try{
+      const settings = loadSettings();
+      if(!settings.gistId){
+        await createGist();
+        statusEl.textContent = 'Created a new private gist and pushed your progress. Save this Gist ID to sync your other device to the same one.';
+        return;
+      }
+      const remote = await pullFromGist();
+      if(remote && (remote.updatedAt || 0) > (state.updatedAt || 0)){
+        state = remote;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        renderHome();
+        statusEl.textContent = 'Pulled newer progress from the other device. ✓';
+      } else {
+        await pushToGist();
+        statusEl.textContent = 'Pushed this device\'s progress. ✓ ' + new Date().toLocaleTimeString();
+      }
+    }catch(e){
+      statusEl.textContent = 'Sync failed: ' + e.message;
+    }
+  }
+
+  // ---------- settings modal wiring ----------
+  function openSettings(){
+    const s = loadSettings();
+    document.getElementById('pat-input').value = s.token || '';
+    document.getElementById('gist-input').value = s.gistId || '';
+    document.getElementById('sync-status').textContent = '';
+    document.getElementById('settings-overlay').classList.remove('hidden');
+  }
+  function closeSettings(){ document.getElementById('settings-overlay').classList.add('hidden'); }
+
+  document.getElementById('gear-btn').addEventListener('click', openSettings);
+  document.getElementById('close-settings-btn').addEventListener('click', closeSettings);
+  document.getElementById('save-settings-btn').addEventListener('click', () => {
+    saveSettings({
+      token: document.getElementById('pat-input').value.trim(),
+      gistId: document.getElementById('gist-input').value.trim(),
+    });
+    document.getElementById('sync-status').textContent = 'Saved locally on this device.';
+  });
+  document.getElementById('sync-now-btn').addEventListener('click', syncNow);
+  document.getElementById('reset-all-btn').addEventListener('click', () => {
+    if(confirm('This clears every guide\'s progress on THIS device (not the gist, unless you sync afterward). Continue?')){
+      state = { updatedAt: Date.now(), modules: {} };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      closeSettings();
+      renderHome();
+    }
+  });
+
+  // ---------- boot ----------
+  window.addEventListener('DOMContentLoaded', () => {
+    renderHome();
+    // Try a quiet background pull in case the other device has newer progress.
+    const settings = loadSettings();
+    if(settings.token && settings.gistId){
+      pullFromGist().then((remote) => {
+        if(remote && (remote.updatedAt || 0) > (state.updatedAt || 0)){
+          state = remote;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          renderHome();
+        }
+      }).catch((e) => console.warn('Background pull skipped:', e.message));
+    }
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('Service worker not registered:', e));
+    }
+  });
+})();
+</script>
+</body>
+</html>

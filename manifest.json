@@ -1,0 +1,14 @@
+{
+  "name": "Lego Build Guides",
+  "short_name": "BuildGuides",
+  "description": "Step-by-step design guides visualised as a growing lego build.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F2F2ED",
+  "theme_color": "#4C9A2A",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
