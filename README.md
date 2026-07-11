@@ -1,13 +1,47 @@
 # 🧱 Build Guides
 
 A step-by-step decision-making PWA, visualised as building with lego bricks.
-First guide: **Building a House** (18 branching decisions, from zoning to budget).
+First guide: **Building a House** (21 branching decisions, from an existing
+structure/knockdown decision through to budget).
 
 Live idea: each guide walks you through one real-world design process one
 decision at a time. Every choice shows its pros and trade-offs before you
 commit, and a brick drops into a "build tray" as you go — so by the end you
 have both a finished decision (a build sheet) and a visual record of how you
 got there.
+
+## What's new: visual walkthroughs, a live house graphic, and quick preview
+
+- **Animated stage intros** — some steps (existing structure/knockdown, the
+  land, foundation, roof) open with a short auto-playing sequence of SVG
+  frames with captions (e.g. lot → easement line drawing in → slope arrow)
+  before you're asked to decide. Tap "Skip ▸▸" to jump ahead, "Replay ↻" to
+  watch again.
+- **A live house graphic** builds up above the brick tray as you answer
+  steps — existing structure → cleared lot → foundation → walls → windows →
+  roof → any extras (pool, sauna, tennis court, tree growing through the
+  roof, doubled battery storage). It also appears (smaller) on the home
+  card and (bigger) on the summary/build-sheet screen.
+- **⚡ Quick preview** on the home card fills every step with a sensible
+  default answer and auto-plays through the whole guide as a hands-off
+  storyboard, with "Skip to build sheet" at any point. Good for seeing the
+  whole shape of the guide before committing to answering it yourself.
+- **Multi-select steps** — the new "Extras & lifestyle features" step lets
+  you tick more than one option (pool, sauna, tennis court, etc.) and hit
+  Continue when done, instead of the usual tap-one-and-advance flow.
+- **Instruction-manual page layout** — each step now looks like a page from
+  a physical LEGO booklet: a page-number badge, a dotted "paper" background,
+  and the options shown as a numbered strip of clickable "parts." Tap a
+  part to open its detail callout (pros/cons + the build/add button) below
+  the strip — only one part's detail is open at a time, same as flipping
+  between callouts in a real manual.
+- **Tappable parts on the picture itself** — the illustration isn't just
+  decorative: every drawn piece (foundation, walls, windows, roof, sun
+  icon, each extra) is a hotspot. Tap one to open a detail sheet for that
+  decision, with a "Change this →" shortcut straight back into that step.
+  Works on both the in-progress graphic and the finished build-sheet one.
+- The guide now assumes there's **already a house on the land** — the first
+  step is a knockdown/demolition decision with its own animated walkthrough.
 
 ---
 
@@ -37,7 +71,7 @@ No build step, no npm, no server. It's plain HTML/CSS/JS.
 | File | Role |
 |---|---|
 | `index.html` | Everything the app *does*: styling + the engine that renders steps, tracks progress, and shows the summary. You should rarely need to touch this when adding new guides. |
-| `modules/house.js` | Everything the house guide *says*: the 18 decisions, their options, and each option's pros/cons. Pure data. |
+| `modules/house.js` | Everything the house guide *says*: the 21 decisions, their options, watch-for checklists, intros, and each option's pros/cons. Pure data. |
 | `manifest.json` | Makes it installable as a PWA (name, colors, icon). |
 | `sw.js` | Minimal offline cache so the app shell still loads without signal. |
 | `icons/icon.svg` | App icon (simple brick-stack SVG, not the LEGO® logo). |
@@ -56,12 +90,26 @@ No build step, no npm, no server. It's plain HTML/CSS/JS.
    (e.g. foundation options change if the land is sloped).
 5. Add `showIf(choices)` to a step if it should sometimes be skipped
    entirely (e.g. "roof pitch" is skipped if you picked a flat roof).
-6. In `index.html`, add one line: `<script src="./modules/yourguide.js" defer></script>`
+6. Add `type: 'multi'` to a step to make it a checklist (tick any number of
+   options, then hit Continue) instead of tap-one-to-advance. Its stored
+   choice becomes an array of option ids instead of a single id.
+7. Add `intro: { title, frames: [{ caption, svg }, ...] }` to give a step
+   an auto-playing animated walkthrough before the prompt. Frames are
+   plain inline SVG strings + a caption; they auto-advance every 2.6s, or
+   the person can tap Skip/Replay. Not every step needs one.
+8. In `index.html`, add one line: `<script src="./modules/yourguide.js" defer></script>`
    right above the existing house.js `<script>` tag or after it — order
    between module files doesn't matter.
-7. If you add a **new category** name, also add its color in two places in
+9. If you add a **new category** name, also add its color in two places in
    `index.html`: the `CATEGORY_VAR` map in the engine script, and a
    `.cat-YourCategory` CSS rule near the other `.cat-*` rules.
+10. The **live house graphic** (`buildHouseSVG` in `index.html`) is written
+    specifically against the house module's step/option ids, so a new
+    guide won't automatically get its own picture — it'll just render the
+    normal text-and-brick-tray experience. Building an equivalent graphic
+    for a new guide means writing a similar function keyed to its ids and
+    wiring it into the three `renderHouseGraphicInto(...)` call sites (home
+    card, live step screen, playthrough, summary).
 
 ### Validation before you push changes
 
