@@ -1,12 +1,21 @@
-/* Minimal app-shell cache. Bump CACHE_NAME any time you change a cached
-   file, otherwise phones may keep serving the old version offline. */
-const CACHE_NAME = 'lego-guides-v1';
+/* App-shell cache with a NETWORK-FIRST strategy for the guide's own files
+   (HTML/JS/manifest), so updates you push to the repo show up the next
+   time someone opens the app while online — instead of silently serving
+   whatever was cached the first time they visited. Offline visitors still
+   fall back to the last cached copy. Only the icon uses cache-first,
+   since it almost never changes and cache-first is faster for it.
+
+   BUMP CACHE_NAME whenever you change what SHELL_FILES lists (rare) —
+   the version number in the name is mostly for your own bookkeeping now,
+   since network-first no longer depends on it to pick up file changes. */
+const CACHE_NAME = 'lego-guides-v2';
 const SHELL_FILES = [
   './index.html',
   './manifest.json',
   './modules/house.js',
   './icons/icon.svg',
 ];
+const CACHE_FIRST_PATHS = ['/icons/'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -24,19 +33,30 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Network-first for GitHub API calls (never cache those), cache-first for
-// everything else in the app shell so the guide still works offline.
 self.addEventListener('fetch', (event) => {
   const url = event.request.url;
-  if (url.includes('api.github.com')) return; // let sync calls hit the network directly
+  if (url.includes('api.github.com')) return; // let sync calls hit the network directly, never cache them
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).then((res) => {
+  const useCacheFirst = CACHE_FIRST_PATHS.some((p) => url.includes(p));
+
+  if (useCacheFirst) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => cached || fetch(event.request).then((res) => {
         const copy = res.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         return res;
-      }).catch(() => cached);
-    })
+      }))
+    );
+    return;
+  }
+
+  // Network-first for the app shell: try the live file, fall back to the
+  // last cached copy only if the network request fails (offline).
+  event.respondWith(
+    fetch(event.request).then((res) => {
+      const copy = res.clone();
+      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+      return res;
+    }).catch(() => caches.match(event.request))
   );
 });
