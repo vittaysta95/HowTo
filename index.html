@@ -56,14 +56,30 @@
   .house-graphic{
     background:linear-gradient(180deg,#DCEFF9 0%,#F2F2ED 70%);
     border-radius:var(--radius);border:3px solid var(--line);
-    padding:8px;margin-bottom:6px;overflow:hidden;
+    padding:8px;margin-bottom:6px;overflow:hidden;position:relative;
   }
-  .house-graphic svg{width:100%;height:auto;display:block;}
+  .house-graphic .graphic-svg-slot{width:100%;height:100%;}
+  .house-graphic svg{width:100%;height:auto;display:block;transform-origin:0 0;touch-action:none;}
   .house-graphic.small{padding:4px;margin-bottom:10px;}
   .house-graphic.small svg{max-height:110px;}
+  .house-graphic:not(.small) .graphic-svg-slot{cursor:grab;touch-action:none;}
+  .house-graphic:not(.small).zoomed .graphic-svg-slot{cursor:grabbing;}
   .house-graphic:not(.small) .hotspot{cursor:pointer;}
   .house-graphic:not(.small) .hotspot:active{opacity:0.65;}
   .graphic-hint{margin:0 0 14px;font-size:0.72rem;color:var(--ink-soft);text-align:center;font-style:italic;}
+
+  .graphic-toolbar{
+    position:absolute;top:8px;right:8px;z-index:5;display:flex;flex-direction:column;gap:4px;
+  }
+  .graphic-toolbar .gt-btn{
+    width:28px;height:28px;border-radius:8px;border:none;background:rgba(28,43,30,0.72);
+    color:#fff;font-size:1rem;font-weight:800;cursor:pointer;line-height:1;
+  }
+  .cutaway-btn{
+    position:absolute;top:8px;left:8px;z-index:5;background:rgba(28,43,30,0.72);color:#fff;
+    border:none;border-radius:8px;padding:6px 10px;font-size:0.72rem;font-weight:700;cursor:pointer;
+  }
+  .cutaway-btn.active{background:var(--blue-dark);}
 
   .module-card{
     background:var(--card);border-radius:var(--radius);
@@ -327,7 +343,15 @@
       <div id="progress-label"></div>
       <div id="progress-bar"><div id="progress-fill" style="width:0%"></div></div>
     </div>
-    <div class="house-graphic" id="house-graphic-live"></div>
+    <div class="house-graphic" id="house-graphic-live">
+      <div class="graphic-toolbar">
+        <button class="gt-btn" data-act="in" title="Zoom in">+</button>
+        <button class="gt-btn" data-act="out" title="Zoom out">–</button>
+        <button class="gt-btn" data-act="reset" title="Reset view">⤢</button>
+      </div>
+      <button class="cutaway-btn" data-target="house-graphic-live">🔍 Wall cutaway</button>
+      <div class="graphic-svg-slot"></div>
+    </div>
     <p class="graphic-hint">🧩 Tap any part of the picture for details</p>
     <div class="tray-label">🧾 Parts used so far</div>
     <div id="brick-tray"></div>
@@ -374,7 +398,15 @@
   </section>
 
   <section id="screen-summary" class="screen">
-    <div class="house-graphic" id="house-graphic-summary"></div>
+    <div class="house-graphic" id="house-graphic-summary">
+      <div class="graphic-toolbar">
+        <button class="gt-btn" data-act="in" title="Zoom in">+</button>
+        <button class="gt-btn" data-act="out" title="Zoom out">–</button>
+        <button class="gt-btn" data-act="reset" title="Reset view">⤢</button>
+      </div>
+      <button class="cutaway-btn" data-target="house-graphic-summary">🔍 Wall cutaway</button>
+      <div class="graphic-svg-slot"></div>
+    </div>
     <p class="graphic-hint">🧩 Tap any part of the picture for details</p>
     <div class="step-card">
       <div class="step-eyebrow">Instruction booklet</div>
@@ -752,12 +784,204 @@
     function wrapSVG(p){ return '<svg viewBox="0 0 480 330" xmlns="http://www.w3.org/2000/svg">' + p.join('') + '</svg>'; }
   }
 
+  /* =============================================================
+     WALL CUTAWAY — an exploded axonometric diagram of one wall
+     section, pulled apart layer by layer (interior finish → framing
+     → insulation → sheathing → exterior cladding) so hidden systems
+     like wiring and plumbing — which never appear on the outside of
+     the model no matter how far you zoom — become visible and
+     tappable. Every layer/system is its own hotspot.
+  ============================================================= */
+  const FRAME_TINT = { wood_frame:'#D8B27E', steel_frame:'#A7B4BC', masonry_concrete:'#B0B4B8' };
+  const SHEATH_TINT = { standard_frame:'#D8D2C2', sip_panel:'#E3DCC0', icf:'#C7CDD1' };
+
+  function buildCutawaySVG(choices){
+    choices = choices || {};
+    if(!window.ISO) return '<svg viewBox="0 0 480 330"></svg>';
+    const s = window.ISO.scene(140, 250, 30);
+    const parts = [];
+    const W = 4, H = 4.4, T = 0.35, GAP = 0.55;
+    let y = 0;
+
+    function label(cx, y0, text){
+      const p = s.pt(cx, y0 - 0.55, H + 0.35);
+      return '<text x="' + p[0].toFixed(1) + '" y="' + p[1].toFixed(1) + '" font-size="10" text-anchor="middle" font-weight="700" fill="#1C2B1E">' + text + '</text>';
+    }
+
+    // 1) Interior finish (context only, no hotspot — nothing to decide here)
+    parts.push(s.box(0, y, 0, W, T, H, '#EDEADF', {outline:true}));
+    parts.push(label(W/2, y, 'Interior'));
+    y += T + GAP;
+
+    // 2) Framing — studs you can see through
+    const frameColor = FRAME_TINT[choices.structural_system] || '#D8B27E';
+    let frameSVG = '';
+    [0.3, 1.85, 3.4].forEach((sx) => { frameSVG += s.box(sx, y, 0, 0.3, T, H, frameColor, {outline:true}); });
+    frameSVG += s.box(0, y, H - 0.3, W, T, 0.3, frameColor, {outline:true}); // top plate
+    parts.push(hotspot('structural_system', frameSVG));
+    parts.push(label(W/2, y, 'Framing'));
+
+    // wiring: orange cable drilled through the middle stud, with a junction-box dot
+    const wireZ = H * 0.42;
+    const wireA = s.pt(-0.3, y + T/2, wireZ), wireB = s.pt(W + 0.3, y + T/2, wireZ);
+    let wireSVG = '<line x1="' + wireA[0].toFixed(1) + '" y1="' + wireA[1].toFixed(1) + '" x2="' + wireB[0].toFixed(1) + '" y2="' + wireB[1].toFixed(1) + '" stroke="#E8792A" stroke-width="3.2" stroke-linecap="round"/>';
+    const boxPt = s.pt(1.85 + 0.15, y + T/2, wireZ);
+    wireSVG += '<rect x="' + (boxPt[0]-5).toFixed(1) + '" y="' + (boxPt[1]-5).toFixed(1) + '" width="10" height="10" rx="2" fill="#3E4A50"/>';
+    // plumbing: blue pipe running vertically near the second stud
+    const pipeA = s.pt(3.4 + 0.15, y - GAP*0.4, 0), pipeB = s.pt(3.4 + 0.15, y + T + GAP*0.4, H - 0.4);
+    wireSVG += '<line x1="' + pipeA[0].toFixed(1) + '" y1="' + pipeA[1].toFixed(1) + '" x2="' + pipeB[0].toFixed(1) + '" y2="' + pipeB[1].toFixed(1) + '" stroke="#2C6EBE" stroke-width="3.6" stroke-linecap="round"/>';
+    parts.push(hotspot('plumbing_electrical', wireSVG));
+    y += T + GAP;
+
+    // 3) Insulation — thickness/density hints at the tier chosen
+    const insTier = choices.insulation_envelope;
+    const insH = insTier === 'passive_house' ? H - 0.2 : insTier === 'high_performance' ? H - 0.9 : H - 1.7;
+    let insSVG = s.box(0, y, 0, W, T, insH, '#F2E6C8', {outline:true, texture:'wood'});
+    if(insTier === 'passive_house') insSVG += s.box(0, y + T, 0, W, 0.06, insH, '#2C6EBE', {outline:false}); // vapor barrier line
+    parts.push(hotspot('insulation_envelope', insSVG));
+    parts.push(label(W/2, y, 'Insulation'));
+    y += T + GAP;
+
+    // 4) Sheathing / wall structure
+    const sheathColor = SHEATH_TINT[choices.wall_structure_material] || '#D8D2C2';
+    parts.push(hotspot('wall_structure_material', s.box(0, y, 0, W, T, H, sheathColor, {outline:true, texture:'panel'})));
+    parts.push(label(W/2, y, 'Sheathing'));
+    y += T + GAP;
+
+    // 5) Exterior cladding — the visible skin, with its real texture
+    const cladColor = CLAD_COLOR[choices.exterior_cladding] || '#D8D2C2';
+    const cladTex = CLAD_TEX[choices.exterior_cladding] || null;
+    parts.push(hotspot('exterior_cladding', s.box(0, y, 0, W, T, H, cladColor, {outline:true, texture: cladTex})));
+    parts.push(label(W/2, y, 'Cladding'));
+
+    parts.push('<text x="240" y="26" font-size="13" text-anchor="middle" font-weight="800" fill="#1C2B1E">Wall cutaway — tap any layer</text>');
+
+    return '<svg viewBox="0 0 480 330" xmlns="http://www.w3.org/2000/svg">' + parts.join('') + '</svg>';
+  }
+
   function renderHouseGraphicInto(containerId, choices, small){
     const el = document.getElementById(containerId);
     if(!el) return;
     el.classList.toggle('small', !!small);
-    el.innerHTML = buildHouseSVG(choices);
+    const slot = el.querySelector('.graphic-svg-slot');
+    const cutaway = el.dataset.cutaway === '1';
+    const svg = cutaway ? buildCutawaySVG(choices) : buildHouseSVG(choices);
+    if(slot) slot.innerHTML = svg; else el.innerHTML = svg;
+    if(!small){
+      attachZoomPan(containerId);
+      const zoomApi = el._zoomApi;
+      if(zoomApi) zoomApi.reset(); // fresh render (new step, new choices) starts from a known view
+    }
   }
+
+  // =============================================================
+  // ZOOM & PAN — lets you inspect any part of the model up close:
+  // pinch (touch), scroll wheel (desktop), or the +/–/reset buttons.
+  // Drag to pan once zoomed in. A moved-flag suppresses the hotspot
+  // click that would otherwise fire at the end of a drag/pinch.
+  // =============================================================
+  let suppressHotspotClick = false;
+
+  function attachZoomPan(containerId){
+    const container = document.getElementById(containerId);
+    if(!container || container.dataset.zoomBound) return;
+    container.dataset.zoomBound = '1';
+    const slot = container.querySelector('.graphic-svg-slot') || container;
+
+    let scale = 1, tx = 0, ty = 0, moved = false;
+    const pointers = new Map();
+    let lastX = 0, lastY = 0, pinchDist = null;
+
+    function apply(){
+      const svg = slot.querySelector('svg');
+      if(svg) svg.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
+    }
+    function clampPan(){
+      const limit = 40 + 260 * (scale - 1);
+      tx = Math.max(-limit, Math.min(limit, tx));
+      ty = Math.max(-limit, Math.min(limit, ty));
+    }
+    function zoomAt(factor, cx, cy){
+      const ns = Math.max(1, Math.min(4, scale * factor));
+      tx = cx - (cx - tx) * (ns / scale);
+      ty = cy - (cy - ty) * (ns / scale);
+      scale = ns;
+      if(scale <= 1.001){ scale = 1; tx = 0; ty = 0; }
+      clampPan();
+      apply();
+      container.classList.toggle('zoomed', scale > 1);
+    }
+    function reset(){ scale = 1; tx = 0; ty = 0; apply(); container.classList.remove('zoomed'); }
+
+    container.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const rect = container.getBoundingClientRect();
+      zoomAt(e.deltaY < 0 ? 1.18 : 0.85, e.clientX - rect.left, e.clientY - rect.top);
+    }, { passive: false });
+
+    container.addEventListener('pointerdown', (e) => {
+      if(e.target.closest('.graphic-toolbar, .cutaway-btn')) return; // let button clicks fire normally
+      pointers.set(e.pointerId, e);
+      try{ container.setPointerCapture(e.pointerId); }catch(err){}
+      moved = false;
+      lastX = e.clientX; lastY = e.clientY;
+    });
+    container.addEventListener('pointermove', (e) => {
+      if(!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, e);
+      if(pointers.size === 2){
+        const pts = Array.from(pointers.values());
+        const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
+        const rect = container.getBoundingClientRect();
+        const cx = (pts[0].clientX + pts[1].clientX) / 2 - rect.left;
+        const cy = (pts[0].clientY + pts[1].clientY) / 2 - rect.top;
+        if(pinchDist) zoomAt(dist / pinchDist, cx, cy);
+        pinchDist = dist;
+        moved = true;
+      } else if(pointers.size === 1 && scale > 1){
+        const dx = e.clientX - lastX, dy = e.clientY - lastY;
+        if(Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+        if(moved){ tx += dx; ty += dy; clampPan(); apply(); }
+        lastX = e.clientX; lastY = e.clientY;
+      }
+    });
+    function endPointer(e){
+      pointers.delete(e.pointerId);
+      if(pointers.size < 2) pinchDist = null;
+      if(moved){
+        suppressHotspotClick = true;
+        setTimeout(() => { suppressHotspotClick = false; }, 60);
+      }
+    }
+    container.addEventListener('pointerup', endPointer);
+    container.addEventListener('pointercancel', endPointer);
+
+    container.querySelectorAll('.graphic-toolbar .gt-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const act = btn.dataset.act;
+        const rect = container.getBoundingClientRect();
+        if(act === 'in') zoomAt(1.35, rect.width/2, rect.height/2);
+        else if(act === 'out') zoomAt(0.7, rect.width/2, rect.height/2);
+        else reset();
+      });
+    });
+
+    container._zoomApi = { reset: reset };
+  }
+
+  document.querySelectorAll('.cutaway-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const container = document.getElementById(btn.dataset.target);
+      if(!container) return;
+      const mod = getModule(currentModuleId);
+      const ms = mod ? state.modules[mod.id] : null;
+      const isOn = container.dataset.cutaway === '1';
+      container.dataset.cutaway = isOn ? '0' : '1';
+      btn.classList.toggle('active', !isOn);
+      btn.textContent = isOn ? '🔍 Wall cutaway' : '🏠 Full house';
+      renderHouseGraphicInto(btn.dataset.target, ms ? ms.choices : {}, false);
+    });
+  });
 
   function renderHome(){
     document.getElementById('topbar-sub').textContent = 'Home';
@@ -1215,6 +1439,7 @@
   }
 
   document.addEventListener('click', (e) => {
+    if(suppressHotspotClick) return;
     const hotspotEl = e.target.closest('.house-graphic:not(.small) .hotspot');
     if(!hotspotEl) return;
     const mod = getModule(currentModuleId);

@@ -138,6 +138,37 @@ generic (doesn't know anything about houses) — write your own
 `buildScene`/`buildXSVG` function against it, the way `modules/house.js`
 does.
 
+## Zooming in, and the wall cutaway
+
+The live model and the finished build-sheet model both support:
+
+- **Pinch-to-zoom** (touch), **scroll-wheel zoom** (desktop), or the
+  **+ / – / ⤢ reset** buttons in the top-right corner.
+- **Drag to pan** once zoomed in, to inspect any part of the house up
+  close — the roof texture, a specific window, an extra like the pool
+  or garage, whatever you tapped in or want a closer look at.
+
+That covers everything visible on the outside of the model. But some
+choices — insulation, plumbing, electrical wiring — are never visible
+from outside no matter how far you zoom, because they're inside the
+wall. For those, there's a **"🔍 Wall cutaway"** button (top-left of the
+graphic) that swaps in an *exploded* diagram of one wall section, pulled
+apart layer by layer: interior finish → framing (studs, tinted by your
+structural system) → insulation (with a visible vapor-barrier line if
+you picked passive-house tier) → sheathing → exterior cladding — plus an
+orange wire drilled through a stud with a junction box, and a blue pipe
+running through the cavity. Every layer is its own tappable hotspot,
+same detail-sheet-with-"Change this" behavior as the main model. Tap
+"🏠 Full house" to swap back.
+
+Implementation-wise: `attachZoomPan()` in `index.html` binds pointer/
+wheel handlers once per graphic container and applies a CSS
+`transform: translate() scale()` to the inner `<svg>`; a `moved` flag
+suppresses the hotspot click that would otherwise fire at the end of a
+drag or pinch. `buildCutawaySVG()` (also in `index.html`, next to
+`buildHouseSVG`) draws the exploded layers using the same `iso.js`
+primitives as everything else.
+
 ## Not seeing graphics / the new layout?
 
 If you've opened this app before (even once) and updated the files since,
