@@ -8,10 +8,11 @@
    BUMP CACHE_NAME whenever you change what SHELL_FILES lists (rare) —
    the version number in the name is mostly for your own bookkeeping now,
    since network-first no longer depends on it to pick up file changes. */
-const CACHE_NAME = 'lego-guides-v2';
+const CACHE_NAME = 'lego-guides-v3';
 const SHELL_FILES = [
   './index.html',
   './manifest.json',
+  './iso.js',
   './modules/house.js',
   './icons/icon.svg',
 ];

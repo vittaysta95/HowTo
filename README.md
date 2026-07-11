@@ -95,6 +95,49 @@ appears for a two-storey build. It ranges from 17 pages (nothing extra,
 one storey) up to 23 (everything selected, two storeys) — verified both
 ends of that range in testing.
 
+## The 3D LEGO look (iso.js)
+
+Everything visual — the live house model, the home-card thumbnail, and
+every flip-book page — is now drawn in isometric ("2:1") projection via
+`iso.js`, a small dependency-free SVG library loaded before the module
+files. It draws real LEGO-style pieces: three shaded faces per box (top
+lit, left-side lit, right-side shadowed), studs on exposed top faces,
+brick/wood/panel coursing lines baked into the wall texture, four roof
+shapes (gable/hip/shed/flat) with tile/metal/shingle line patterns, a
+minifig-style worker figure, and a manual-style drop arrow for the
+flip-book's "new part arrives" moments.
+
+- **`window.ISO.scene(originX, originY, unit)`** returns a drawing
+  context bound to that origin/scale, with `.box`, `.flat`,
+  `.gableRoof`/`.hipRoof`/`.shedRoof`/`.flatRoof`, `.windowLeft`/
+  `.doorLeft`/`.doorRight` (face decals), `.tree`, `.arrow`, `.shadow`.
+  All coordinates are grid units in a right-handed 3D system (+x
+  right-ish, +y left-ish, +z up); `.pt(x,y,z)` projects to screen space
+  if you need it directly.
+- **`window.ISO.minifig(x, y, scale, torsoColor)`** draws a simple
+  LEGO-style worker at a screen position (not grid-projected — it's
+  meant to be composed after projecting an anchor point with `.pt`).
+- **Materials actually change the render**: `exterior_cladding` picks
+  the wall color *and* texture (brick coursing, wood planks, stucco
+  smooth, fiber-cement panels); the new `roof_material` step (tiles,
+  metal, shingles — Stage 6, right after roof pitch) picks the roof
+  color and line pattern; `structural_system` tints exposed framing in
+  the storyboard's framing pages.
+- The **live house model** (`buildHouseSVG` in `index.html`) and the
+  **storyboard** (`buildScene` in `modules/house.js`) are separate
+  functions that both call into `iso.js` — the storyboard draws a
+  *cumulative* build state per page (bare plate → slab → frame → walls
+  → roof → finished) with the newest piece marked by a drop arrow, LEGO
+  manual-style; the live model always reflects your current choices in
+  one static "already built" view.
+- Hotspots are preserved exactly as before — every drawn group is still
+  tagged `data-step="..."` and tappable for its detail sheet.
+
+If you add a new module and want the same treatment, `iso.js` is
+generic (doesn't know anything about houses) — write your own
+`buildScene`/`buildXSVG` function against it, the way `modules/house.js`
+does.
+
 ## Not seeing graphics / the new layout?
 
 If you've opened this app before (even once) and updated the files since,
@@ -125,6 +168,7 @@ tools → Console tab).
    index.html
    manifest.json
    sw.js
+   iso.js
    modules/house.js
    icons/icon.svg
    ```
@@ -143,7 +187,8 @@ No build step, no npm, no server. It's plain HTML/CSS/JS.
 | File | Role |
 |---|---|
 | `index.html` | Everything the app *does*: styling + the engine that renders steps, tracks progress, and shows the summary. You should rarely need to touch this when adding new guides. |
-| `modules/house.js` | Everything the house guide *says*: the 21 decisions, their options, watch-for checklists, intros, and each option's pros/cons. Pure data. |
+| `iso.js` | Dependency-free isometric SVG drawing library (boxes, roofs, studs, minifigs, textures) — the whole "3D LEGO" rendering layer. Generic, doesn't know anything about houses. |
+| `modules/house.js` | Everything the house guide *says*: the 25 decisions, their options, watch-for checklists, intros, and each option's pros/cons — plus the storyboard, which draws cumulative isometric build scenes via `iso.js`. |
 | `manifest.json` | Makes it installable as a PWA (name, colors, icon). |
 | `sw.js` | Minimal offline cache so the app shell still loads without signal. |
 | `icons/icon.svg` | App icon (simple brick-stack SVG, not the LEGO® logo). |
