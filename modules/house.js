@@ -16,6 +16,14 @@
                  (used when earlier answers change what's on offer)
      showIf    - optional function(choices) => bool. Step is skipped
                  if this returns false (used for branching).
+     type      - optional: 'multi' makes this a multi-select checklist
+                 step (choices[step.id] becomes an array) with its own
+                 "Continue" button, instead of the default single-select
+                 that advances the moment you tap an option.
+     intro     - optional animated walkthrough shown above the prompt the
+                 first time you land on this step: { title, frames: [
+                 { caption, svg }, ... ] }. Frames auto-advance; not every
+                 step needs one — plain steps just show the watchFor list.
 
    ASSUMPTION: content assumes a Northern Hemisphere site (south-facing
    = more sun) since that's the common default; noted inline where it
@@ -31,6 +39,44 @@ window.LEGO_MODULES.push({
   baseColor: '#4C9A2A', // grass-green baseplate for this module's home card
 
   steps: [
+    // ---------------- EXISTING SITE ----------------
+    {
+      id: 'existing_structure',
+      category: 'Planning',
+      title: 'What\'s already on the land?',
+      intro: {
+        title: 'Knockdown walkthrough',
+        frames: [
+          { caption: 'Here\'s what\'s on the land today.',
+            svg: '<svg viewBox="0 0 320 200"><line x1="0" y1="176" x2="320" y2="176" stroke="#B8C2A6" stroke-width="4"/><rect x="120" y="118" width="80" height="58" fill="#9AA0A6"/><polygon points="112,118 160,86 208,118" fill="#7C848B"/><rect x="150" y="140" width="20" height="36" fill="#7C848B"/><text x="160" y="196" font-size="11" text-anchor="middle" fill="#51605A">Existing house on the block</text></svg>' },
+          { caption: 'Time to clear the site — demolition day.',
+            svg: '<svg viewBox="0 0 320 200"><line x1="0" y1="176" x2="320" y2="176" stroke="#B8C2A6" stroke-width="4"/><rect x="120" y="118" width="80" height="58" fill="#9AA0A6" opacity="0.5"/><polygon points="112,118 160,86 208,118" fill="#7C848B" opacity="0.5"/><line x1="118" y1="116" x2="204" y2="178" stroke="#D93B3B" stroke-width="4"/><line x1="204" y1="116" x2="118" y2="178" stroke="#D93B3B" stroke-width="4"/><circle cx="250" cy="70" r="10" fill="#7C848B"/><line x1="250" y1="80" x2="205" y2="130" stroke="#5F6C74" stroke-width="3"/><text x="160" y="196" font-size="11" text-anchor="middle" fill="#51605A">Knockdown in progress</text></svg>' },
+          { caption: 'Clean slate — ready to design from the ground up.',
+            svg: '<svg viewBox="0 0 320 200"><line x1="0" y1="176" x2="320" y2="176" stroke="#B8C2A6" stroke-width="4"/><text x="160" y="150" font-size="11" text-anchor="middle" fill="#9AA3A8">empty lot</text><text x="160" y="196" font-size="11" text-anchor="middle" fill="#387420">Clean slate — your turn to build</text></svg>' },
+        ],
+      },
+      watchFor: [
+        'Hazardous material survey (asbestos, lead paint) before any demolition — mandatory in most jurisdictions for older builds',
+        'Demolition permit and required council/neighbor notification period',
+        'Disconnecting and capping existing water, gas, electric, and sewer connections before work starts',
+        'Protection of any trees, fences, or structures on neighboring property during demolition',
+        'Salvage/recycling requirements for reusable materials (often required, sometimes profitable)',
+        'Confirming the new build\'s setbacks don\'t just inherit the old house\'s footprint by assumption',
+      ],
+      prompt: 'Most real lots aren\'t empty — how are you dealing with what\'s already there?',
+      options: [
+        { id: 'full_demo', label: 'Full demolition, build new',
+          pros: ['Completely clean slate for design', 'No compromise from an old layout or structure'],
+          cons: ['Demolition cost and time before construction even starts', 'Nothing to salvage as a cost offset unless planned for'] },
+        { id: 'partial_reno', label: 'Partial demolition — renovate & extend',
+          pros: ['Can be cheaper and faster than a full rebuild', 'Keeps a mature garden/established feel'],
+          cons: ['Existing structure limits many choices in this guide', 'Hidden condition issues in the retained part are a common surprise'] },
+        { id: 'relocate_move', label: 'Relocate the existing house off-site',
+          pros: ['Preserves the old house for reuse elsewhere', 'Can be cheaper than demolition + landfill fees in some regions'],
+          cons: ['House-moving is a specialized, weather-dependent, and not-always-available service', 'Still need a genuinely clean slate afterward, same as full demolition'] },
+      ],
+    },
+
     // ---------------- PLANNING ----------------
     {
       id: 'permits_zoning',
@@ -63,6 +109,17 @@ window.LEGO_MODULES.push({
       id: 'site_terrain',
       category: 'Site',
       title: 'Choose your land',
+      intro: {
+        title: 'Reading your lot',
+        frames: [
+          { caption: 'Here\'s your lot boundary.',
+            svg: '<svg viewBox="0 0 320 200"><rect x="40" y="40" width="240" height="130" fill="none" stroke="#387420" stroke-width="3"/><text x="160" y="190" font-size="11" text-anchor="middle" fill="#51605A">Your lot</text></svg>' },
+          { caption: 'Now check for an easement — often invisible until you look at the title.',
+            svg: '<svg viewBox="0 0 320 200"><rect x="40" y="40" width="240" height="130" fill="none" stroke="#387420" stroke-width="3"/><rect x="40" y="130" width="240" height="30" fill="#D93B3B" opacity="0.18"/><line x1="40" y1="130" x2="280" y2="130" stroke="#D93B3B" stroke-width="2" stroke-dasharray="8 5"/><line x1="40" y1="160" x2="280" y2="160" stroke="#D93B3B" stroke-width="2" stroke-dasharray="8 5"/><text x="160" y="150" font-size="10" text-anchor="middle" fill="#B92E2E">easement — no permanent structures here</text></svg>' },
+          { caption: 'Then check the slope — which way does the land fall?',
+            svg: '<svg viewBox="0 0 320 200"><rect x="40" y="40" width="240" height="130" fill="none" stroke="#387420" stroke-width="3"/><polygon points="40,170 280,170 280,60" fill="#2C6EBE" opacity="0.15"/><line x1="40" y1="170" x2="280" y2="60" stroke="#2C6EBE" stroke-width="2"/><path d="M240 90 l14 -6 l-4 15 z" fill="#2C6EBE"/><text x="160" y="190" font-size="10" text-anchor="middle" fill="#22579A">slope direction &amp; steepness</text></svg>' },
+        ],
+      },
       watchFor: [
         'Exact easement locations on the title survey — drainage/sewer easements often run right where you\'d want to build',
         'Sewer main location and connection/invert level (affects whether gravity drainage works or you need a pump)',
@@ -167,6 +224,17 @@ window.LEGO_MODULES.push({
       id: 'foundation',
       category: 'Structure',
       title: 'Foundation type',
+      intro: {
+        title: 'How foundations sit in the ground',
+        frames: [
+          { caption: 'A slab sits right on the ground — simple and fast.',
+            svg: '<svg viewBox="0 0 320 160"><line x1="0" y1="120" x2="320" y2="120" stroke="#B8C2A6" stroke-width="4"/><rect x="110" y="108" width="100" height="12" fill="#9AA3A8"/><text x="160" y="150" font-size="11" text-anchor="middle" fill="#51605A">Slab-on-grade</text></svg>' },
+          { caption: 'A crawlspace lifts the floor slightly for access underneath.',
+            svg: '<svg viewBox="0 0 320 160"><line x1="0" y1="120" x2="320" y2="120" stroke="#B8C2A6" stroke-width="4"/><rect x="110" y="96" width="100" height="24" fill="#9AA3A8"/><text x="160" y="150" font-size="11" text-anchor="middle" fill="#51605A">Crawlspace</text></svg>' },
+          { caption: 'A basement digs down — more floor area, more waterproofing to get right.',
+            svg: '<svg viewBox="0 0 320 160"><line x1="0" y1="90" x2="320" y2="90" stroke="#B8C2A6" stroke-width="4"/><rect x="110" y="82" width="100" height="60" fill="#9AA3A8" stroke="#6B7378" stroke-dasharray="3 3"/><text x="160" y="152" font-size="11" text-anchor="middle" fill="#51605A">Full basement (below grade)</text></svg>' },
+        ],
+      },
       watchFor: [
         'A current soil/geotech report — old reports can be invalid if the site or code has changed',
         'Water table depth at the actual building location, not just the general area',
@@ -293,6 +361,19 @@ window.LEGO_MODULES.push({
       id: 'roof_type',
       category: 'Envelope',
       title: 'Roof type',
+      intro: {
+        title: 'Roof shapes at a glance',
+        frames: [
+          { caption: 'Gable — simple triangle, sheds water/snow well.',
+            svg: '<svg viewBox="0 0 320 160"><rect x="110" y="90" width="100" height="40" fill="#D8D2C2"/><polygon points="100,90 160,45 220,90" fill="#5B4636"/><text x="160" y="150" font-size="11" text-anchor="middle" fill="#51605A">Gable</text></svg>' },
+          { caption: 'Hip — slopes on all four sides, very stable in wind.',
+            svg: '<svg viewBox="0 0 320 160"><rect x="110" y="90" width="100" height="40" fill="#D8D2C2"/><polygon points="100,90 220,90 195,55 135,55" fill="#5B4636"/><text x="160" y="150" font-size="11" text-anchor="middle" fill="#51605A">Hip</text></svg>' },
+          { caption: 'Shed / mono-pitch — one clean slope, great for solar panels.',
+            svg: '<svg viewBox="0 0 320 160"><rect x="110" y="90" width="100" height="40" fill="#D8D2C2"/><polygon points="100,90 220,90 220,50 100,80" fill="#5B4636"/><text x="160" y="150" font-size="11" text-anchor="middle" fill="#51605A">Shed / mono-pitch</text></svg>' },
+          { caption: 'Flat — usable roof deck, but leaks are the #1 complaint.',
+            svg: '<svg viewBox="0 0 320 160"><rect x="110" y="90" width="100" height="40" fill="#D8D2C2"/><rect x="100" y="80" width="120" height="10" fill="#5B4636"/><text x="160" y="150" font-size="11" text-anchor="middle" fill="#51605A">Flat / low-slope</text></svg>' },
+        ],
+      },
       watchFor: [
         'Maximum roof height controls in your zoning rules',
         'Wind uplift rating required for your region',
@@ -500,6 +581,65 @@ window.LEGO_MODULES.push({
         { id: 'smart_prewire', label: 'Standard plumbing + smart-home electrical pre-wire',
           pros: ['Future-proofs for automation/EV charging/solar without opening walls later'],
           cons: ['Added upfront electrical cost for capacity you may not use immediately'] },
+      ],
+    },
+
+    // ---------------- ROOMS & EXTRAS ----------------
+    {
+      id: 'room_count',
+      category: 'Structure',
+      title: 'How many bedrooms?',
+      watchFor: [
+        'Minimum floor area per bedroom under your local code',
+        'Whether a home office/nursery is really "a bedroom" for code and resale purposes, or something else',
+        'Second-storey vs. single-storey cost implications if you jump up a size tier',
+        'Future needs (aging parents, kids leaving/returning, home business) — resizing after the fact is expensive',
+      ],
+      prompt: 'This affects footprint, cost, and every room-layout choice already made.',
+      options: [
+        { id: '2_or_fewer', label: '2 bedrooms or fewer',
+          pros: ['Smallest footprint and cost', 'Easier to heat/cool and clean'],
+          cons: ['Least flexible for guests, family growth, or working from home'] },
+        { id: '3', label: '3 bedrooms',
+          pros: ['The most common sweet spot for resale value'],
+          cons: ['Still tight if you want a dedicated office plus guest space'] },
+        { id: '4', label: '4 bedrooms',
+          pros: ['Room for a home office and guests without doubling up'],
+          cons: ['Noticeably larger footprint and build cost than 3'] },
+        { id: '5_plus', label: '5+ bedrooms',
+          pros: ['Maximum flexibility for a large or multi-generational household'],
+          cons: ['Largest footprint — pushes hardest against lot-size and setback limits from earlier'] },
+      ],
+    },
+    {
+      id: 'extras',
+      category: 'Planning',
+      type: 'multi',
+      title: 'Extras & lifestyle features',
+      prompt: 'Pick any you want in the build — none of these are required, and you can select more than one.',
+      watchFor: [
+        'Pool: safety fencing/isolation requirements and a council permit are almost always mandatory, not optional',
+        'Tennis court: drainage, lighting, and noise setback distance from neighboring bedrooms',
+        'Sauna: dedicated ventilation, electrical load, and clearance to combustible materials',
+        'Tree-in-house: a structural engineer needs to detail the roof/floor opening, plus ongoing root and moisture management',
+        'Battery storage: fire-code clearance rules and a capacity limit that may need utility or council sign-off',
+      ],
+      options: [
+        { id: 'pool', label: 'Swimming pool',
+          pros: ['Major lifestyle and resale appeal in the right climate'],
+          cons: ['Ongoing running/maintenance cost', 'Safety fencing is a legal requirement, not a nice-to-have'] },
+        { id: 'sauna', label: 'Sauna',
+          pros: ['Daily-use wellness feature, doesn\'t need much floor area'],
+          cons: ['Dedicated electrical circuit and ventilation add cost'] },
+        { id: 'tennis_court', label: 'Tennis court',
+          pros: ['Big lifestyle feature if you\'ll genuinely use it'],
+          cons: ['Needs a large, flat, well-drained area — often the biggest footprint item on this list'] },
+        { id: 'tree_in_house', label: 'Tree growing through the house',
+          pros: ['A genuinely unique, memorable architectural feature'],
+          cons: ['Real structural and waterproofing complexity around the opening', 'The tree\'s health becomes a load-bearing concern'] },
+        { id: 'double_battery', label: 'Extra (doubled) battery storage', 
+          pros: ['More home-battery backup and higher self-sufficiency from solar'],
+          cons: ['Higher upfront cost and more wall space needed', 'May need council/utility approval past a certain capacity'] },
       ],
     },
 
