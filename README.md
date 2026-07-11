@@ -45,6 +45,28 @@ got there.
 
 ---
 
+## Not seeing graphics / the new layout?
+
+If you've opened this app before (even once) and updated the files since,
+your browser may be serving a **stale cached copy** via the service worker
+instead of the new one — that's the #1 cause of "I updated the files but
+nothing changed." To confirm and fix it:
+
+1. On the device where it looks wrong, open the site in the browser (not
+   the installed home-screen icon) and do a hard refresh — on Android
+   Chrome: menu → hold Reload, or Settings → Site settings → find the
+   site → Clear & reset.
+2. If you'd added it to your home screen as an app, remove that icon and
+   re-add it after step 1, so it reinstalls from the fresh files.
+3. Confirm the fix worked: open browser dev tools (or `chrome://inspect`
+   from a desktop) → Application → Service Workers, and check the
+   registered script shows `lego-guides-v2` (or higher) as the cache name.
+
+If it still looks wrong after a hard refresh, the most useful things to
+send back are: (a) a screenshot of the page, and (b) any red errors from
+the browser's JavaScript console (Chrome: menu → More tools → Developer
+tools → Console tab).
+
 ## Quick start (GitHub Pages, no local setup)
 
 1. Create files at these exact paths in your repo (via GitHub's web UI,

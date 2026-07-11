@@ -164,6 +164,22 @@
   .watchfor ul li{margin-bottom:4px;}
   .watchfor.empty{display:none;}
 
+  /* ---- Auto-popup toast: pops up on its own each time a new page loads ---- */
+  .wf-toast{
+    position:fixed;left:12px;right:12px;bottom:12px;max-width:616px;margin:0 auto;
+    background:#1C2B1E;color:#fff;border-radius:14px;
+    box-shadow:0 8px 26px rgba(0,0,0,0.4);z-index:60;padding:14px 16px 16px;
+    transform:translateY(160%);opacity:0;transition:transform 0.35s ease, opacity 0.35s ease;
+    pointer-events:none;max-height:60vh;overflow-y:auto;
+  }
+  .wf-toast.show{transform:translateY(0);opacity:1;pointer-events:auto;}
+  .wf-toast-head{display:flex;align-items:center;gap:8px;font-weight:800;font-family:'Baloo 2',system-ui,sans-serif;margin-bottom:6px;}
+  .wf-toast-head strong{flex:1;font-size:1rem;}
+  .wf-toast-head button{background:rgba(255,255,255,0.16);color:#fff;border:none;border-radius:7px;
+    width:26px;height:26px;font-size:0.8rem;cursor:pointer;}
+  .wf-toast ul{margin:0;padding-left:20px;font-size:0.85rem;line-height:1.5;color:#EDEAdf;}
+  .wf-toast ul li{margin-bottom:5px;}
+
   /* ---- Parts strip: clickable "pieces" for this step, like a manual's parts inventory ---- */
   .parts-strip{display:flex;gap:12px;overflow-x:auto;padding:6px 4px 16px;scrollbar-width:none;}
   .parts-strip::-webkit-scrollbar{display:none;}
@@ -297,6 +313,16 @@
       </div>
     </div>
   </section>
+
+  <div class="wf-toast" id="wf-toast">
+    <div class="wf-toast-head">
+      <span>⚠️</span>
+      <strong id="wf-toast-title">Before you decide</strong>
+      <button id="wf-toast-close" aria-label="Dismiss">✕</button>
+    </div>
+    <ul id="wf-toast-list"></ul>
+  </div>
+
 
   <section id="screen-playthrough" class="screen">
     <div class="playthrough-card">
@@ -677,6 +703,20 @@
 
   function stopIntro(){ clearInterval(introTimer); introTimer = null; }
 
+  function showWatchForToast(step, items){
+    const toast = document.getElementById('wf-toast');
+    if(!items || items.length === 0){ toast.classList.remove('show'); return; }
+    document.getElementById('wf-toast-title').textContent = 'Before you decide: ' + step.title;
+    document.getElementById('wf-toast-list').innerHTML = items.map((i) => '<li>' + i + '</li>').join('');
+    // Force the slide-in to replay even if the toast was already showing for the previous step.
+    toast.classList.remove('show');
+    void toast.offsetWidth;
+    setTimeout(() => toast.classList.add('show'), 350);
+  }
+  document.getElementById('wf-toast-close').addEventListener('click', () => {
+    document.getElementById('wf-toast').classList.remove('show');
+  });
+
   function playIntro(step){
     const container = document.getElementById('intro-container');
     stopIntro();
@@ -748,11 +788,14 @@
     if(mod.id === 'house') renderHouseGraphicInto('house-graphic-live', ms.choices, false);
     renderTray(mod, ms.choices, step.id);
 
+    const watchItems = resolve(step.watchFor, ms.choices) || [];
+
     if(stepChanged){
       document.getElementById('step-eyebrow').textContent = step.category;
       document.getElementById('step-title').textContent = step.title;
       document.getElementById('page-badge').textContent = (idx + 1) + '/' + visible.length;
       playIntro(step);
+      showWatchForToast(step, watchItems);
       renderedChromeStepId = step.id;
       activeDetailOptionId = null; // fresh step — let the default-selection logic below pick one
     }
@@ -760,7 +803,6 @@
 
     const watchBox = document.getElementById('watchfor-box');
     const watchList = document.getElementById('watchfor-list');
-    const watchItems = resolve(step.watchFor, ms.choices) || [];
     watchList.innerHTML = watchItems.map((item) => '<li>' + item + '</li>').join('');
     watchBox.classList.toggle('empty', watchItems.length === 0);
     if(stepChanged) watchBox.open = false;
@@ -904,6 +946,7 @@
   function show(screenId){
     document.querySelectorAll('.screen').forEach((el) => el.classList.remove('active'));
     document.getElementById(screenId).classList.add('active');
+    if(screenId !== 'screen-module') document.getElementById('wf-toast').classList.remove('show');
   }
 
   // =============================================================
