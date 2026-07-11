@@ -7,9 +7,22 @@
    file's shape into modules/garden.js and add one <script> tag in
    index.html. That's the whole "growing library" mechanism.
 
+   Steps are grouped into STAGES (see HOUSE_MODULE.stageNames below) so
+   the flow reads as a construction narrative rather than a flat list:
+     Stage 1 — Understanding the Codes   (zoning, land, climate, site)
+     Stage 2 — Architectural Design      (rooms, storeys, extras, layout)
+     Stage 3 — Demolition
+     Stage 4 — Site Clearing & Setup
+     Stage 5 — Foundation & Structure
+     Stage 6 — Building the Envelope     (roof, walls, windows)
+     Stage 7 — Building the Systems      (insulation, HVAC, plumbing)
+     Stage 8 — Final Planning            (budget)
+
    Each step:
      id        - unique string, used as the key choices are stored under
      category  - controls brick color + which "layer" it sits in visually
+     stage     - integer 1-8, which construction stage this belongs to
+                 (see stageNames map below) — purely for grouping/display
      title     - short heading
      prompt    - the question shown to the user
      options   - EITHER a static array, OR a function(choices) => array
@@ -24,6 +37,10 @@
                  first time you land on this step: { title, frames: [
                  { caption, svg }, ... ] }. Frames auto-advance; not every
                  step needs one — plain steps just show the watchFor list.
+     watchFor  - array, OR function(choices) => array. The auto-popup
+                 checklist. Making it a function (see feature_positioning
+                 below) is how a step can react to earlier answers, e.g.
+                 only showing positioning tips for extras actually picked.
 
    ASSUMPTION: content assumes a Northern Hemisphere site (south-facing
    = more sun) since that's the common default; noted inline where it
@@ -32,55 +49,31 @@
 
 window.LEGO_MODULES = window.LEGO_MODULES || [];
 
-window.LEGO_MODULES.push({
+var HOUSE_MODULE = {
   id: 'house',
   title: 'Building a House',
   tagline: 'Step through every major design decision, brick by brick.',
   baseColor: '#4C9A2A', // grass-green baseplate for this module's home card
 
-  steps: [
-    // ---------------- EXISTING SITE ----------------
-    {
-      id: 'existing_structure',
-      category: 'Planning',
-      title: 'What\'s already on the land?',
-      intro: {
-        title: 'Knockdown walkthrough',
-        frames: [
-          { caption: 'Here\'s what\'s on the land today.',
-            svg: '<svg viewBox="0 0 320 200"><line x1="0" y1="176" x2="320" y2="176" stroke="#B8C2A6" stroke-width="4"/><rect x="120" y="118" width="80" height="58" fill="#9AA0A6"/><polygon points="112,118 160,86 208,118" fill="#7C848B"/><rect x="150" y="140" width="20" height="36" fill="#7C848B"/><text x="160" y="196" font-size="11" text-anchor="middle" fill="#51605A">Existing house on the block</text></svg>' },
-          { caption: 'Time to clear the site — demolition day.',
-            svg: '<svg viewBox="0 0 320 200"><line x1="0" y1="176" x2="320" y2="176" stroke="#B8C2A6" stroke-width="4"/><rect x="120" y="118" width="80" height="58" fill="#9AA0A6" opacity="0.5"/><polygon points="112,118 160,86 208,118" fill="#7C848B" opacity="0.5"/><line x1="118" y1="116" x2="204" y2="178" stroke="#D93B3B" stroke-width="4"/><line x1="204" y1="116" x2="118" y2="178" stroke="#D93B3B" stroke-width="4"/><circle cx="250" cy="70" r="10" fill="#7C848B"/><line x1="250" y1="80" x2="205" y2="130" stroke="#5F6C74" stroke-width="3"/><text x="160" y="196" font-size="11" text-anchor="middle" fill="#51605A">Knockdown in progress</text></svg>' },
-          { caption: 'Clean slate — ready to design from the ground up.',
-            svg: '<svg viewBox="0 0 320 200"><line x1="0" y1="176" x2="320" y2="176" stroke="#B8C2A6" stroke-width="4"/><text x="160" y="150" font-size="11" text-anchor="middle" fill="#9AA3A8">empty lot</text><text x="160" y="196" font-size="11" text-anchor="middle" fill="#387420">Clean slate — your turn to build</text></svg>' },
-        ],
-      },
-      watchFor: [
-        'Hazardous material survey (asbestos, lead paint) before any demolition — mandatory in most jurisdictions for older builds',
-        'Demolition permit and required council/neighbor notification period',
-        'Disconnecting and capping existing water, gas, electric, and sewer connections before work starts',
-        'Protection of any trees, fences, or structures on neighboring property during demolition',
-        'Salvage/recycling requirements for reusable materials (often required, sometimes profitable)',
-        'Confirming the new build\'s setbacks don\'t just inherit the old house\'s footprint by assumption',
-      ],
-      prompt: 'Most real lots aren\'t empty — how are you dealing with what\'s already there?',
-      options: [
-        { id: 'full_demo', label: 'Full demolition, build new',
-          pros: ['Completely clean slate for design', 'No compromise from an old layout or structure'],
-          cons: ['Demolition cost and time before construction even starts', 'Nothing to salvage as a cost offset unless planned for'] },
-        { id: 'partial_reno', label: 'Partial demolition — renovate & extend',
-          pros: ['Can be cheaper and faster than a full rebuild', 'Keeps a mature garden/established feel'],
-          cons: ['Existing structure limits many choices in this guide', 'Hidden condition issues in the retained part are a common surprise'] },
-        { id: 'relocate_move', label: 'Relocate the existing house off-site',
-          pros: ['Preserves the old house for reuse elsewhere', 'Can be cheaper than demolition + landfill fees in some regions'],
-          cons: ['House-moving is a specialized, weather-dependent, and not-always-available service', 'Still need a genuinely clean slate afterward, same as full demolition'] },
-      ],
-    },
+  stageNames: {
+    1: 'Understanding the Codes',
+    2: 'Architectural Design',
+    3: 'Demolition',
+    4: 'Site Clearing & Setup',
+    5: 'Foundation & Structure',
+    6: 'Building the Envelope',
+    7: 'Building the Systems',
+    8: 'Final Planning',
+  },
 
-    // ---------------- PLANNING ----------------
+  steps: [
+    // =========================================================
+    // STAGE 1 — UNDERSTANDING THE CODES
+    // =========================================================
     {
       id: 'permits_zoning',
       category: 'Planning',
+      stage: 1,
       title: 'Zoning & permits reality check',
       watchFor: [
         'Zoning classification and permitted use for this exact parcel (not just the neighborhood in general)',
@@ -103,11 +96,10 @@ window.LEGO_MODULES.push({
           cons: ['Some later options in this guide may not be legally available to you'] },
       ],
     },
-
-    // ---------------- SITE ----------------
     {
       id: 'site_terrain',
       category: 'Site',
+      stage: 1,
       title: 'Choose your land',
       intro: {
         title: 'Reading your lot',
@@ -145,6 +137,7 @@ window.LEGO_MODULES.push({
     {
       id: 'climate',
       category: 'Site',
+      stage: 1,
       title: 'Climate zone',
       watchFor: [
         'Your jurisdiction\'s official climate zone rating (drives minimum insulation/glazing code later)',
@@ -172,6 +165,7 @@ window.LEGO_MODULES.push({
     {
       id: 'orientation',
       category: 'Site',
+      stage: 1,
       title: 'Sunlight & orientation',
       watchFor: [
         'True north vs. magnetic north — a compass reading alone can be off by a meaningful margin',
@@ -196,6 +190,7 @@ window.LEGO_MODULES.push({
     {
       id: 'lot_context',
       category: 'Site',
+      stage: 1,
       title: 'Lot size & setting',
       watchFor: [
         'Exact building envelope diagram — where you\'re legally allowed to build on the lot, not just the setback numbers in isolation',
@@ -219,10 +214,281 @@ window.LEGO_MODULES.push({
       ],
     },
 
-    // ---------------- STRUCTURE ----------------
+    // =========================================================
+    // STAGE 2 — ARCHITECTURAL DESIGN
+    // =========================================================
+    {
+      id: 'room_count',
+      category: 'Structure',
+      stage: 2,
+      title: 'How many bedrooms?',
+      watchFor: [
+        'Minimum floor area per bedroom under your local code',
+        'Whether a home office/nursery is really "a bedroom" for code and resale purposes, or something else',
+        'Second-storey vs. single-storey cost implications if you jump up a size tier',
+        'Future needs (aging parents, kids leaving/returning, home business) — resizing after the fact is expensive',
+      ],
+      prompt: 'This affects footprint, cost, and every room-layout choice still ahead.',
+      options: [
+        { id: '2_or_fewer', label: '2 bedrooms or fewer',
+          pros: ['Smallest footprint and cost', 'Easier to heat/cool and clean'],
+          cons: ['Least flexible for guests, family growth, or working from home'] },
+        { id: '3', label: '3 bedrooms',
+          pros: ['The most common sweet spot for resale value'],
+          cons: ['Still tight if you want a dedicated office plus guest space'] },
+        { id: '4', label: '4 bedrooms',
+          pros: ['Room for a home office and guests without doubling up'],
+          cons: ['Noticeably larger footprint and build cost than 3'] },
+        { id: '5_plus', label: '5+ bedrooms',
+          pros: ['Maximum flexibility for a large or multi-generational household'],
+          cons: ['Largest footprint — pushes hardest against lot-size and setback limits from Stage 1'] },
+      ],
+    },
+    {
+      id: 'stories',
+      category: 'Structure',
+      stage: 2,
+      title: 'How many storeys?',
+      watchFor: [
+        'Local height limit — a second storey might not be allowed at all under some overlays',
+        'Stair location eats into ground-floor floor area (typically 3–4 m² of footprint)',
+        'Overlooking/privacy rules for any upstairs windows facing neighbors',
+        'Foundation and structural loading requirements scale up for a second storey',
+        'Accessibility: a two-storey design usually still needs a ground-floor bedroom/bathroom if aging-in-place matters',
+      ],
+      prompt: 'Single level or two floors? This changes your foundation loading, stair space, and roof framing later.',
+      options: [
+        { id: 'one', label: 'Single storey',
+          pros: ['No stairs — simplest accessibility and aging-in-place option', 'Simpler, cheaper foundation and structure'],
+          cons: ['Needs a larger footprint for the same total floor area — pushes against lot-size and setback limits'] },
+        { id: 'two', label: 'Two storeys',
+          pros: ['More floor area from a smaller footprint', 'Can separate public/private zones by floor'],
+          cons: ['Stairs cost floor area and are a real accessibility barrier', 'Higher structural/foundation loading and usually higher cost per m²'] },
+      ],
+    },
+    {
+      id: 'extras',
+      category: 'Planning',
+      stage: 2,
+      type: 'multi',
+      title: 'Extras & lifestyle features',
+      prompt: 'Pick any you want in the build — none of these are required, and you can select more than one.',
+      watchFor: [
+        'Pool: safety fencing/isolation requirements and a council permit are almost always mandatory, not optional',
+        'Sauna: dedicated ventilation, electrical load, and clearance to combustible materials',
+        'Gym: reinforced flooring for heavy equipment, plus impact-noise isolation if it\'s above another room',
+        'Tennis court: drainage, lighting, and noise setback distance from neighboring bedrooms',
+        'Tree-in-house: a structural engineer needs to detail the roof/floor opening, plus ongoing root and moisture management',
+        'Garage: fire-rated separation wall between an attached garage and living space is a common code requirement',
+        'Home office/studio: may need its own egress window if it could later be reclassified as a bedroom',
+        'Outdoor kitchen: weatherproof-rated appliances plus its own gas/water/power runs and clearance to combustibles',
+        'Guest suite / granny flat: may trigger a separate secondary-dwelling approval, not just a room addition',
+        'Battery storage: fire-code clearance rules and a capacity limit that may need utility or council sign-off',
+      ],
+      options: [
+        { id: 'pool', label: 'Swimming pool',
+          pros: ['Major lifestyle and resale appeal in the right climate'],
+          cons: ['Ongoing running/maintenance cost', 'Safety fencing is a legal requirement, not a nice-to-have'] },
+        { id: 'sauna', label: 'Sauna',
+          pros: ['Daily-use wellness feature, doesn\'t need much floor area'],
+          cons: ['Dedicated electrical circuit and ventilation add cost'] },
+        { id: 'gym', label: 'Home gym',
+          pros: ['No commute to a gym, usable any time'],
+          cons: ['Needs reinforced flooring for heavy equipment and decent ventilation'] },
+        { id: 'tennis_court', label: 'Tennis court',
+          pros: ['Big lifestyle feature if you\'ll genuinely use it'],
+          cons: ['Needs a large, flat, well-drained area — often the biggest footprint item on this list'] },
+        { id: 'tree_in_house', label: 'Tree growing through the house',
+          pros: ['A genuinely unique, memorable architectural feature'],
+          cons: ['Real structural and waterproofing complexity around the opening', 'The tree\'s health becomes a load-bearing concern'] },
+        { id: 'garage', label: 'Attached garage',
+          pros: ['Secure, weatherproof parking and extra storage'],
+          cons: ['Adds meaningfully to the footprint and can eat into your setback allowance'] },
+        { id: 'home_office', label: 'Dedicated home office/studio',
+          pros: ['A proper work-from-home space instead of a kitchen-table setup'],
+          cons: ['Needs its own power/data circuit and sound isolation to actually function as an office'] },
+        { id: 'outdoor_kitchen', label: 'Outdoor kitchen / BBQ area',
+          pros: ['Great for entertaining, keeps cooking heat and smell outside in summer'],
+          cons: ['Needs weatherproof-rated appliances and its own gas/water/power runs'] },
+        { id: 'guest_suite', label: 'Separate guest suite / granny flat',
+          pros: ['Private space for guests, or extra rental income potential'],
+          cons: ['May trigger a separate secondary-dwelling approval process'] },
+        { id: 'double_battery', label: 'Extra (doubled) battery storage',
+          pros: ['More home-battery backup and higher self-sufficiency from solar'],
+          cons: ['Higher upfront cost and more wall space needed', 'May need council/utility approval past a certain capacity'] },
+      ],
+    },
+    {
+      id: 'feature_positioning',
+      category: 'Structure',
+      stage: 2,
+      title: 'Positioning your features',
+      prompt: (choices) => {
+        const extras = Array.isArray(choices.extras) ? choices.extras : [];
+        return extras.length
+          ? 'You\'ve picked ' + extras.length + ' extra' + (extras.length > 1 ? 's' : '') + ' — now decide the overall approach to arranging them around the house.'
+          : 'No extras picked — this step is quick, but the overall arrangement strategy still matters for the yard and services.';
+      },
+      watchFor: (choices) => {
+        const extras = Array.isArray(choices.extras) ? choices.extras : [];
+        const tips = [];
+        if(extras.indexOf('pool') !== -1) tips.push('Pool: put it on the sunniest side, clear of the house\'s afternoon shadow, and not directly downwind of any outdoor kitchen smoke');
+        if(extras.indexOf('sauna') !== -1) tips.push('Sauna: locate near existing bathroom plumbing to keep the run short, with its own dedicated ventilation');
+        if(extras.indexOf('gym') !== -1) tips.push('Gym: ground floor over a reinforced slab where possible — an upstairs gym needs real impact-noise isolation below it');
+        if(extras.indexOf('tennis_court') !== -1) tips.push('Tennis court: orient it north–south so neither end faces directly into low sun, and keep it away from bedroom windows for noise');
+        if(extras.indexOf('tree_in_house') !== -1) tips.push('Tree-in-house: position it clear of load-bearing walls and main structural spans — this decides your framing layout, not the other way around');
+        if(extras.indexOf('garage') !== -1) tips.push('Garage: street-facing side for driveway access, with a fire-rated wall separating it from living space');
+        if(extras.indexOf('home_office') !== -1) tips.push('Home office: the quiet side of the house, away from bedrooms if it will host calls at odd hours');
+        if(extras.indexOf('outdoor_kitchen') !== -1) tips.push('Outdoor kitchen: close to the indoor kitchen wall to keep gas/water/power runs short');
+        if(extras.indexOf('guest_suite') !== -1) tips.push('Guest suite: a separate entrance and some real distance from the main bedrooms both matter for actual privacy');
+        if(choices.stories === 'two') tips.push('Two storeys: stack wet areas (bathrooms/kitchen) vertically floor-to-floor to keep plumbing runs short');
+        if(tips.length === 0) tips.push('No extras selected on the previous page — go back if you want feature-specific positioning tips here');
+        return tips;
+      },
+      options: [
+        { id: 'cluster_active', label: 'Cluster active/loud features together',
+          pros: ['Noise and activity stay in one zone, away from quiet rooms'],
+          cons: ['Needs more contiguous flat yard space in one spot'] },
+        { id: 'spread_perimeter', label: 'Spread features around the perimeter',
+          pros: ['Each feature gets its own outlook and aspect'],
+          cons: ['Longer service runs (power/water/gas) to each one'] },
+        { id: 'close_to_house', label: 'Keep everything close to the house',
+          pros: ['Shortest utility runs, most convenient day-to-day'],
+          cons: ['Can feel cramped and reduces open usable yard space'] },
+      ],
+    },
+    {
+      id: 'floor_plan',
+      category: 'Structure',
+      stage: 2,
+      title: 'Floor plan layout',
+      watchFor: [
+        'Minimum habitable room sizes required by your local code',
+        'Natural light/ventilation minimums — many codes require a minimum window area as a % of floor area per room',
+        'Fire egress path requirements from bedrooms and the overall plan',
+        'Hallway and doorway width if accessibility/aging-in-place matters to you, now or later',
+        'Minimum ceiling height requirements, especially in any split-level or basement space',
+      ],
+      prompt: (choices => `Given a ${choices.lot_context === 'urban' ? 'tight urban' : choices.lot_context === 'rural' ? 'spacious rural' : 'suburban'} lot, how should rooms be arranged?`),
+      options: [
+        { id: 'open_concept', label: 'Open-concept',
+          pros: ['Feels bigger than it is', 'Great for entertaining and sightlines to kids'],
+          cons: ['Noise and smells travel everywhere', 'Harder to zone heating/cooling efficiently'] },
+        { id: 'zoned_traditional', label: 'Zoned / traditional rooms',
+          pros: ['Privacy and noise separation', 'Easier to heat/cool only occupied rooms'],
+          cons: ['Feels more compartmentalized', 'More interior walls = more cost'] },
+        { id: 'split_level', label: 'Split-level / multi-level zoning',
+          pros: ['Good for sloped lots or separating public/private areas vertically'],
+          cons: ['Stairs everywhere — harder for accessibility/aging in place'] },
+      ],
+    },
+    {
+      id: 'room_layout_sunlight',
+      category: 'Structure',
+      stage: 2,
+      title: 'Which rooms get the sun?',
+      watchFor: [
+        'Overlooking/privacy rules for windows facing directly into a neighbor\'s yard or windows',
+        'Required solar access hours for main living areas under your local code, if any',
+        'Window-to-floor-area ratio actually needed to make a passive-solar strategy work, not just "a big window"',
+        'Glare timing for any room with a screen (TV, home office monitor) on the sun-facing side',
+      ],
+      prompt: (choices => {
+        const facing = choices.orientation === 'south' ? 'south (your sunniest side)'
+          : choices.orientation === 'north' ? 'north (your evenest, coolest side)'
+          : 'east/west (your strongest morning or evening side)';
+        return `Your main façade faces ${facing}. Where do you put the sun-facing rooms?`;
+      }),
+      options: [
+        { id: 'living_forward', label: 'Living/kitchen get the sun-facing side',
+          pros: ['Best daylight where the household spends the most waking hours'],
+          cons: ['Bedrooms get less natural light and may feel darker'] },
+        { id: 'bedrooms_forward', label: 'Bedrooms get the sun-facing side',
+          pros: ['Warm, bright bedrooms — pleasant for morning-oriented households'],
+          cons: ['Living spaces may need more artificial lighting during the day'] },
+        { id: 'mixed_zoned', label: 'Split evenly, zoned by time-of-day use',
+          pros: ['Balanced light distribution across the whole house'],
+          cons: ['Requires more careful (and slightly more expensive) window planning'] },
+      ],
+    },
+
+    // =========================================================
+    // STAGE 3 — DEMOLITION
+    // =========================================================
+    {
+      id: 'existing_structure',
+      category: 'Planning',
+      stage: 3,
+      title: 'What\'s already on the land?',
+      intro: {
+        title: 'Knockdown walkthrough',
+        frames: [
+          { caption: 'Here\'s what\'s on the land today.',
+            svg: '<svg viewBox="0 0 320 200"><line x1="0" y1="176" x2="320" y2="176" stroke="#B8C2A6" stroke-width="4"/><rect x="120" y="118" width="80" height="58" fill="#9AA0A6"/><polygon points="112,118 160,86 208,118" fill="#7C848B"/><rect x="150" y="140" width="20" height="36" fill="#7C848B"/><text x="160" y="196" font-size="11" text-anchor="middle" fill="#51605A">Existing house on the block</text></svg>' },
+          { caption: 'Time to clear the site — demolition day.',
+            svg: '<svg viewBox="0 0 320 200"><line x1="0" y1="176" x2="320" y2="176" stroke="#B8C2A6" stroke-width="4"/><rect x="120" y="118" width="80" height="58" fill="#9AA0A6" opacity="0.5"/><polygon points="112,118 160,86 208,118" fill="#7C848B" opacity="0.5"/><line x1="118" y1="116" x2="204" y2="178" stroke="#D93B3B" stroke-width="4"/><line x1="204" y1="116" x2="118" y2="178" stroke="#D93B3B" stroke-width="4"/><circle cx="250" cy="70" r="10" fill="#7C848B"/><line x1="250" y1="80" x2="205" y2="130" stroke="#5F6C74" stroke-width="3"/><text x="160" y="196" font-size="11" text-anchor="middle" fill="#51605A">Knockdown in progress</text></svg>' },
+          { caption: 'Clean slate — ready to design from the ground up.',
+            svg: '<svg viewBox="0 0 320 200"><line x1="0" y1="176" x2="320" y2="176" stroke="#B8C2A6" stroke-width="4"/><text x="160" y="150" font-size="11" text-anchor="middle" fill="#9AA3A8">empty lot</text><text x="160" y="196" font-size="11" text-anchor="middle" fill="#387420">Clean slate — your turn to build</text></svg>' },
+        ],
+      },
+      watchFor: [
+        'Hazardous material survey (asbestos, lead paint) before any demolition — mandatory in most jurisdictions for older builds',
+        'Demolition permit and required council/neighbor notification period',
+        'Disconnecting and capping existing water, gas, electric, and sewer connections before work starts',
+        'Protection of any trees, fences, or structures on neighboring property during demolition',
+        'Salvage/recycling requirements for reusable materials (often required, sometimes profitable)',
+        'Confirming the new build\'s setbacks don\'t just inherit the old house\'s footprint by assumption',
+      ],
+      prompt: 'Most real lots aren\'t empty — how are you dealing with what\'s already there?',
+      options: [
+        { id: 'full_demo', label: 'Full demolition, build new',
+          pros: ['Completely clean slate for design', 'No compromise from an old layout or structure'],
+          cons: ['Demolition cost and time before construction even starts', 'Nothing to salvage as a cost offset unless planned for'] },
+        { id: 'partial_reno', label: 'Partial demolition — renovate & extend',
+          pros: ['Can be cheaper and faster than a full rebuild', 'Keeps a mature garden/established feel'],
+          cons: ['Existing structure limits many choices in this guide', 'Hidden condition issues in the retained part are a common surprise'] },
+        { id: 'relocate_move', label: 'Relocate the existing house off-site',
+          pros: ['Preserves the old house for reuse elsewhere', 'Can be cheaper than demolition + landfill fees in some regions'],
+          cons: ['House-moving is a specialized, weather-dependent, and not-always-available service', 'Still need a genuinely clean slate afterward, same as full demolition'] },
+      ],
+    },
+
+    // =========================================================
+    // STAGE 4 — SITE CLEARING & SETUP
+    // =========================================================
+    {
+      id: 'site_prep',
+      category: 'Site',
+      stage: 4,
+      title: 'Clearing & preparing the land',
+      watchFor: [
+        'Utility locate completed before any machinery touches the ground',
+        'Erosion and sediment control plan required by most councils before clearing begins',
+        'Protected trees or vegetation physically fenced off during clearing, not just noted on paper',
+        'Topsoil stripped and stockpiled separately if you want to reuse it for landscaping later',
+        'Contamination testing if the site has any history of industrial, agricultural-chemical, or fuel-tank use',
+      ],
+      prompt: 'Before excavation starts, the site needs to be cleared and graded.',
+      options: [
+        { id: 'minimal_clear', label: 'Minimal clearing — preserve existing trees/landscaping',
+          pros: ['Keeps mature trees and established garden value'],
+          cons: ['More expensive, more careful excavation working around what\'s kept'] },
+        { id: 'full_clear_grade', label: 'Full clear & grade',
+          pros: ['Simplest, fastest site works', 'Clean, uniform base for construction access'],
+          cons: ['Loses any established trees/landscaping on the footprint'] },
+        { id: 'staged_clearing', label: 'Staged clearing (only what\'s needed per phase)',
+          pros: ['Minimizes exposed bare earth/erosion risk at any one time'],
+          cons: ['Slower — site access and staging logistics get more complex'] },
+      ],
+    },
+
+    // =========================================================
+    // STAGE 5 — FOUNDATION & STRUCTURE
+    // =========================================================
     {
       id: 'foundation',
       category: 'Structure',
+      stage: 5,
       title: 'Foundation type',
       intro: {
         title: 'How foundations sit in the ground',
@@ -265,7 +531,6 @@ window.LEGO_MODULES.push({
               cons: ['Access (stairs/ramps) adds cost and design complexity'] },
           ];
         }
-        // flat (default)
         return [
           { id: 'slab', label: 'Slab-on-grade',
             pros: ['Cheapest, fastest option', 'No crawlspace moisture issues'],
@@ -282,6 +547,7 @@ window.LEGO_MODULES.push({
     {
       id: 'structural_system',
       category: 'Structure',
+      stage: 5,
       title: 'Structural system',
       watchFor: [
         'Engineer span tables for your actual ceiling height and room-width goals, not a generic assumption',
@@ -303,63 +569,14 @@ window.LEGO_MODULES.push({
           cons: ['Slowest and typically most expensive to build'] },
       ],
     },
-    {
-      id: 'floor_plan',
-      category: 'Structure',
-      title: 'Floor plan layout',
-      watchFor: [
-        'Minimum habitable room sizes required by your local code',
-        'Natural light/ventilation minimums — many codes require a minimum window area as a % of floor area per room',
-        'Fire egress path requirements from bedrooms and the overall plan',
-        'Hallway and doorway width if accessibility/aging-in-place matters to you, now or later',
-        'Minimum ceiling height requirements, especially in any split-level or basement space',
-      ],
-      prompt: (choices => `Given a ${choices.lot_context === 'urban' ? 'tight urban' : choices.lot_context === 'rural' ? 'spacious rural' : 'suburban'} lot, how should rooms be arranged?`),
-      options: [
-        { id: 'open_concept', label: 'Open-concept',
-          pros: ['Feels bigger than it is', 'Great for entertaining and sightlines to kids'],
-          cons: ['Noise and smells travel everywhere', 'Harder to zone heating/cooling efficiently'] },
-        { id: 'zoned_traditional', label: 'Zoned / traditional rooms',
-          pros: ['Privacy and noise separation', 'Easier to heat/cool only occupied rooms'],
-          cons: ['Feels more compartmentalized', 'More interior walls = more cost'] },
-        { id: 'split_level', label: 'Split-level / multi-level zoning',
-          pros: ['Good for sloped lots or separating public/private areas vertically'],
-          cons: ['Stairs everywhere — harder for accessibility/aging in place'] },
-      ],
-    },
-    {
-      id: 'room_layout_sunlight',
-      category: 'Structure',
-      title: 'Which rooms get the sun?',
-      watchFor: [
-        'Overlooking/privacy rules for windows facing directly into a neighbor\'s yard or windows',
-        'Required solar access hours for main living areas under your local code, if any',
-        'Window-to-floor-area ratio actually needed to make a passive-solar strategy work, not just "a big window"',
-        'Glare timing for any room with a screen (TV, home office monitor) on the sun-facing side',
-      ],
-      prompt: (choices => {
-        const facing = choices.orientation === 'south' ? 'south (your sunniest side)'
-          : choices.orientation === 'north' ? 'north (your evenest, coolest side)'
-          : 'east/west (your strongest morning or evening side)';
-        return `Your main façade faces ${facing}. Where do you put the sun-facing rooms?`;
-      }),
-      options: [
-        { id: 'living_forward', label: 'Living/kitchen get the sun-facing side',
-          pros: ['Best daylight where the household spends the most waking hours'],
-          cons: ['Bedrooms get less natural light and may feel darker'] },
-        { id: 'bedrooms_forward', label: 'Bedrooms get the sun-facing side',
-          pros: ['Warm, bright bedrooms — pleasant for morning-oriented households'],
-          cons: ['Living spaces may need more artificial lighting during the day'] },
-        { id: 'mixed_zoned', label: 'Split evenly, zoned by time-of-day use',
-          pros: ['Balanced light distribution across the whole house'],
-          cons: ['Requires more careful (and slightly more expensive) window planning'] },
-      ],
-    },
 
-    // ---------------- ENVELOPE ----------------
+    // =========================================================
+    // STAGE 6 — BUILDING THE ENVELOPE
+    // =========================================================
     {
       id: 'roof_type',
       category: 'Envelope',
+      stage: 6,
       title: 'Roof type',
       intro: {
         title: 'Roof shapes at a glance',
@@ -405,6 +622,7 @@ window.LEGO_MODULES.push({
     {
       id: 'roof_pitch',
       category: 'Envelope',
+      stage: 6,
       title: 'Roof pitch (steepness)',
       showIf: (choices) => choices.roof_type !== 'flat',
       watchFor: [
@@ -429,6 +647,7 @@ window.LEGO_MODULES.push({
     {
       id: 'wall_structure_material',
       category: 'Envelope',
+      stage: 6,
       title: 'Exterior wall build-up',
       watchFor: [
         'Thermal bridging detailing sign-off from whoever certifies your energy rating',
@@ -453,6 +672,7 @@ window.LEGO_MODULES.push({
     {
       id: 'exterior_cladding',
       category: 'Envelope',
+      stage: 6,
       title: 'Exterior cladding / finish',
       watchFor: [
         'Bushfire attack level (BAL) rating compliance if that applies to your site',
@@ -480,6 +700,7 @@ window.LEGO_MODULES.push({
     {
       id: 'window_glazing',
       category: 'Envelope',
+      stage: 6,
       title: 'Window & glazing strategy',
       watchFor: [
         'Window energy rating (U-value/SHGC) required by code for your climate zone',
@@ -507,17 +728,20 @@ window.LEGO_MODULES.push({
       ],
     },
 
-    // ---------------- SYSTEMS ----------------
+    // =========================================================
+    // STAGE 7 — BUILDING THE SYSTEMS
+    // =========================================================
     {
       id: 'insulation_envelope',
       category: 'Systems',
+      stage: 7,
       title: 'Insulation target',
       watchFor: [
         'Minimum R-value required by code for your specific climate zone',
         'Vapor barrier placement — the correct side depends on climate, and getting it backwards causes hidden rot',
         'Continuous insulation vs. gaps at structural members (a common source of real-world underperformance)',
         'Blower-door/air-tightness test requirement at higher performance tiers',
-        'Mechanical ventilation (HRV/ERV) becomes necessary once the house gets tight — factor it into the systems step next',
+        'Mechanical ventilation (HRV/ERV) becomes necessary once the house gets tight — factor it into the next step',
       ],
       prompt: (choices => `For a ${choices.climate ? choices.climate.replace('_',' ') : 'your'} climate, how far do you push the insulation envelope?`),
       options: [
@@ -535,6 +759,7 @@ window.LEGO_MODULES.push({
     {
       id: 'hvac_system',
       category: 'Systems',
+      stage: 7,
       title: 'Heating & cooling system',
       watchFor: [
         'Proper equipment sizing via a real load calculation (e.g. Manual J) — not a ballpark rule of thumb, which usually oversizes',
@@ -562,6 +787,7 @@ window.LEGO_MODULES.push({
     {
       id: 'plumbing_electrical',
       category: 'Systems',
+      stage: 7,
       title: 'Plumbing & electrical rough-in',
       watchFor: [
         'Local code minimum outlet/circuit counts per room',
@@ -584,69 +810,13 @@ window.LEGO_MODULES.push({
       ],
     },
 
-    // ---------------- ROOMS & EXTRAS ----------------
-    {
-      id: 'room_count',
-      category: 'Structure',
-      title: 'How many bedrooms?',
-      watchFor: [
-        'Minimum floor area per bedroom under your local code',
-        'Whether a home office/nursery is really "a bedroom" for code and resale purposes, or something else',
-        'Second-storey vs. single-storey cost implications if you jump up a size tier',
-        'Future needs (aging parents, kids leaving/returning, home business) — resizing after the fact is expensive',
-      ],
-      prompt: 'This affects footprint, cost, and every room-layout choice already made.',
-      options: [
-        { id: '2_or_fewer', label: '2 bedrooms or fewer',
-          pros: ['Smallest footprint and cost', 'Easier to heat/cool and clean'],
-          cons: ['Least flexible for guests, family growth, or working from home'] },
-        { id: '3', label: '3 bedrooms',
-          pros: ['The most common sweet spot for resale value'],
-          cons: ['Still tight if you want a dedicated office plus guest space'] },
-        { id: '4', label: '4 bedrooms',
-          pros: ['Room for a home office and guests without doubling up'],
-          cons: ['Noticeably larger footprint and build cost than 3'] },
-        { id: '5_plus', label: '5+ bedrooms',
-          pros: ['Maximum flexibility for a large or multi-generational household'],
-          cons: ['Largest footprint — pushes hardest against lot-size and setback limits from earlier'] },
-      ],
-    },
-    {
-      id: 'extras',
-      category: 'Planning',
-      type: 'multi',
-      title: 'Extras & lifestyle features',
-      prompt: 'Pick any you want in the build — none of these are required, and you can select more than one.',
-      watchFor: [
-        'Pool: safety fencing/isolation requirements and a council permit are almost always mandatory, not optional',
-        'Tennis court: drainage, lighting, and noise setback distance from neighboring bedrooms',
-        'Sauna: dedicated ventilation, electrical load, and clearance to combustible materials',
-        'Tree-in-house: a structural engineer needs to detail the roof/floor opening, plus ongoing root and moisture management',
-        'Battery storage: fire-code clearance rules and a capacity limit that may need utility or council sign-off',
-      ],
-      options: [
-        { id: 'pool', label: 'Swimming pool',
-          pros: ['Major lifestyle and resale appeal in the right climate'],
-          cons: ['Ongoing running/maintenance cost', 'Safety fencing is a legal requirement, not a nice-to-have'] },
-        { id: 'sauna', label: 'Sauna',
-          pros: ['Daily-use wellness feature, doesn\'t need much floor area'],
-          cons: ['Dedicated electrical circuit and ventilation add cost'] },
-        { id: 'tennis_court', label: 'Tennis court',
-          pros: ['Big lifestyle feature if you\'ll genuinely use it'],
-          cons: ['Needs a large, flat, well-drained area — often the biggest footprint item on this list'] },
-        { id: 'tree_in_house', label: 'Tree growing through the house',
-          pros: ['A genuinely unique, memorable architectural feature'],
-          cons: ['Real structural and waterproofing complexity around the opening', 'The tree\'s health becomes a load-bearing concern'] },
-        { id: 'double_battery', label: 'Extra (doubled) battery storage', 
-          pros: ['More home-battery backup and higher self-sufficiency from solar'],
-          cons: ['Higher upfront cost and more wall space needed', 'May need council/utility approval past a certain capacity'] },
-      ],
-    },
-
-    // ---------------- PLANNING (WRAP-UP) ----------------
+    // =========================================================
+    // STAGE 8 — FINAL PLANNING
+    // =========================================================
     {
       id: 'budget_contingency',
       category: 'Planning',
+      stage: 8,
       title: 'Budget approach',
       watchFor: [
         'At least 2–3 independent quotes before committing to any approach',
@@ -669,4 +839,261 @@ window.LEGO_MODULES.push({
       ],
     },
   ],
-});
+};
+
+/* ===================================================================
+   STORYBOARD: "How it's actually built" — a page-by-page picture book
+   of the physical construction sequence (as opposed to the decisions
+   above). Each page is a standalone illustrated scene with a caption.
+   Purely visual/narrative — no choices, no pros/cons.
+
+   FLEXIBLE PAGE LIST: a page can carry `showIf(choices) => bool`, same
+   mechanism as steps — the engine filters the storyboard by the final
+   choices before displaying it, so e.g. the pool-construction page only
+   appears if a pool was actually picked, and the second-storey framing
+   page only appears for a two-storey build.
+
+   Every scene reuses a common "worker" figure (helmet + vest + legs)
+   positioned with an SVG <g transform="translate(x,y)">, with a
+   different tool/prop drawn around it per scene, so the art style
+   stays consistent without hand-drawing a whole new character each
+   time. Ground line + sky background match the rest of the app.
+=================================================================== */
+(function(){
+  'use strict';
+
+  var SKY = '#DCEFF9', GROUND = '#B8C2A6', SKIN = '#E8B98A', VEST = '#E8792A',
+      PANTS = '#3E4A50', HAT = '#F5C518', WOOD = '#C9975B', METAL = '#9AA3A8';
+
+  function worker(x, y, vestColor){
+    return '<g transform="translate(' + x + ',' + y + ')">' +
+      '<rect x="-6" y="18" width="5" height="22" fill="' + PANTS + '"/>' +
+      '<rect x="1" y="18" width="5" height="22" fill="' + PANTS + '"/>' +
+      '<rect x="-8" y="-6" width="16" height="26" rx="3" fill="' + (vestColor || VEST) + '"/>' +
+      '<circle cx="0" cy="-16" r="8" fill="' + SKIN + '"/>' +
+      '<path d="M-10 -19 a10 10 0 0 1 20 0 z" fill="' + HAT + '"/>' +
+    '</g>';
+  }
+
+  function page(id, title, caption, sceneSVG, showIf){
+    var p = { id: id, title: title, caption: caption,
+      svg: '<svg viewBox="0 0 320 210" xmlns="http://www.w3.org/2000/svg">' +
+        '<rect x="0" y="0" width="320" height="210" fill="' + SKY + '"/>' +
+        '<line x1="0" y1="172" x2="320" y2="172" stroke="' + GROUND + '" stroke-width="4"/>' +
+        sceneSVG + '</svg>' };
+    if(showIf) p.showIf = showIf;
+    return p;
+  }
+
+  var storyboard = [];
+
+  storyboard.push(page('demolition', 'Knocking it down',
+    'The old structure comes down first.',
+    '<g opacity="0.6"><rect x="180" y="112" width="70" height="60" fill="#9AA0A6"/><polygon points="174,112 215,84 256,112" fill="#7C848B"/></g>' +
+    '<line x1="180" y1="112" x2="250" y2="172" stroke="#D93B3B" stroke-width="3" stroke-dasharray="6 4"/>' +
+    worker(90, 150, VEST) +
+    '<g transform="translate(108,132) rotate(-25)"><rect x="-3" y="-38" width="6" height="38" fill="#6B4A3A"/><rect x="-14" y="-46" width="24" height="12" rx="2" fill="#5F6C74"/></g>'
+  ));
+
+  storyboard.push(page('clearing', 'Clearing the site',
+    'Debris and materials get hauled away before anything new goes in.',
+    '<rect x="150" y="150" width="60" height="18" rx="3" fill="#9AA0A6" opacity="0.7"/>' +
+    '<rect x="158" y="140" width="20" height="14" fill="#7C848B" opacity="0.7"/>' +
+    worker(90, 150, VEST) +
+    '<g transform="translate(100,158)"><rect x="0" y="-6" width="34" height="10" rx="2" fill="#5F6C74"/><circle cx="4" cy="6" r="6" fill="#3E4A50"/><line x1="34" y1="-3" x2="46" y2="-16" stroke="#3E4A50" stroke-width="3"/></g>'
+  ));
+
+  storyboard.push(page('survey', 'Checking the easement',
+    'A surveyor marks the boundary and easement lines before anything else happens.',
+    '<line x1="20" y1="150" x2="300" y2="150" stroke="#D93B3B" stroke-width="2" stroke-dasharray="8 5"/>' +
+    '<text x="160" y="142" font-size="9" text-anchor="middle" fill="#B92E2E">easement line</text>' +
+    worker(220, 150, '#2C6EBE') +
+    '<g transform="translate(232,120)"><line x1="0" y1="0" x2="0" y2="32" stroke="#3E4A50" stroke-width="3"/><line x1="-10" y1="32" x2="10" y2="32" stroke="#3E4A50" stroke-width="3"/><rect x="-6" y="-10" width="12" height="10" fill="#5F6C74"/></g>'
+  ));
+
+  storyboard.push(page('leveling', 'Leveling the land',
+    'The ground gets graded flat (or terraced on a slope) before foundations go in.',
+    '<polygon points="40,172 280,172 280,158 40,166" fill="#C9C2A6"/>' +
+    worker(150, 150, VEST) +
+    '<g transform="translate(162,140)"><rect x="0" y="0" width="40" height="6" rx="2" fill="' + HAT + '" stroke="#3E4A50"/><circle cx="6" cy="3" r="2" fill="#3E4A50"/><circle cx="34" cy="3" r="2" fill="#3E4A50"/></g>'
+  ));
+
+  storyboard.push(page('excavation', 'Digging the footings',
+    'Trenches are dug to the foundation\'s exact depth and layout.',
+    '<rect x="100" y="162" width="120" height="10" fill="#7C5A3C"/>' +
+    '<line x1="100" y1="160" x2="220" y2="160" stroke="#fff" stroke-width="1" stroke-dasharray="3 3"/>' +
+    worker(90, 150, VEST) +
+    '<g transform="translate(102,158)"><line x1="0" y1="0" x2="18" y2="-20" stroke="#6B4A3A" stroke-width="3"/><path d="M18 -20 l10 -4 l-2 10 z" fill="#5F6C74"/></g>'
+  ));
+
+  storyboard.push(page('foundation_pour', 'Pouring the foundation',
+    'Concrete is poured into the formwork and left to cure.',
+    '<rect x="100" y="160" width="120" height="12" fill="' + METAL + '"/>' +
+    '<rect x="96" y="150" width="8" height="22" fill="' + WOOD + '"/><rect x="216" y="150" width="8" height="22" fill="' + WOOD + '"/>' +
+    '<g transform="translate(250,110)"><rect x="-14" y="-10" width="40" height="26" rx="4" fill="#D93B3B"/><circle cx="-8" cy="18" r="8" fill="#3E4A50"/><circle cx="18" cy="18" r="8" fill="#3E4A50"/><polygon points="26,-4 42,6 26,16" fill="#B8C2A6"/></g>' +
+    worker(150, 150, VEST)
+  ));
+
+  storyboard.push(page('framing', 'Framing the walls',
+    'The timber (or steel) skeleton of the ground floor goes up.',
+    '<rect x="110" y="120" width="8" height="50" fill="' + WOOD + '"/><rect x="150" y="120" width="8" height="50" fill="' + WOOD + '"/><rect x="190" y="120" width="8" height="50" fill="' + WOOD + '"/>' +
+    '<rect x="105" y="118" width="98" height="6" fill="' + WOOD + '"/>' +
+    worker(130, 150, VEST) +
+    '<g transform="translate(140,138) rotate(20)"><rect x="-3" y="-16" width="6" height="16" fill="#5F6C74"/><rect x="-9" y="-20" width="18" height="7" rx="2" fill="#3E4A50"/></g>'
+  ));
+
+  storyboard.push(page('second_floor_framing', 'Framing the second storey',
+    'With two floors chosen, the upper level gets framed before the roof goes on.',
+    '<rect x="105" y="118" width="98" height="6" fill="' + WOOD + '" opacity="0.5"/>' +
+    '<rect x="110" y="72" width="8" height="48" fill="' + WOOD + '"/><rect x="150" y="72" width="8" height="48" fill="' + WOOD + '"/><rect x="190" y="72" width="8" height="48" fill="' + WOOD + '"/>' +
+    '<rect x="105" y="70" width="98" height="6" fill="' + WOOD + '"/>' +
+    worker(170, 100, VEST) +
+    '<g transform="translate(180,88) rotate(20)"><rect x="-3" y="-16" width="6" height="16" fill="#5F6C74"/><rect x="-9" y="-20" width="18" height="7" rx="2" fill="#3E4A50"/></g>',
+    function(choices){ return choices && choices.stories === 'two'; }
+  ));
+
+  storyboard.push(page('roof_framing', 'Framing the roof',
+    'Roof trusses go up next, giving the house its shape.',
+    '<rect x="110" y="140" width="90" height="32" fill="' + WOOD + '" opacity="0.35"/>' +
+    '<polygon points="105,140 155,100 205,140" fill="none" stroke="' + WOOD + '" stroke-width="5"/>' +
+    '<line x1="130" y1="120" x2="180" y2="120" stroke="' + WOOD + '" stroke-width="4"/>' +
+    worker(155, 108, VEST) +
+    '<g transform="translate(168,96) rotate(-15)"><rect x="-3" y="-14" width="6" height="14" fill="#5F6C74"/><rect x="-9" y="-18" width="18" height="6" rx="2" fill="#3E4A50"/></g>'
+  ));
+
+  storyboard.push(page('tree_feature', 'Building around the tree',
+    'The roof and floor need a carefully engineered opening for the tree to grow through.',
+    '<polygon points="100,140 160,96 220,140" fill="' + WOOD + '" opacity="0.4"/>' +
+    '<circle cx="160" cy="118" r="14" fill="none" stroke="#D93B3B" stroke-width="2" stroke-dasharray="4 3"/>' +
+    '<rect x="156" y="118" width="8" height="54" fill="#7C5A3C"/><circle cx="160" cy="104" r="20" fill="#5C9A4C"/>' +
+    worker(120, 150, VEST) +
+    '<g transform="translate(132,138)"><rect x="-2" y="-12" width="4" height="12" fill="#5F6C74"/></g>',
+    function(choices){ return choices && Array.isArray(choices.extras) && choices.extras.indexOf('tree_in_house') !== -1; }
+  ));
+
+  storyboard.push(page('roofing', 'Roofing',
+    'The roof gets sheathed and covered — shingles, tile, or metal, whatever you chose earlier.',
+    '<polygon points="100,140 160,96 220,140" fill="#5B4636"/>' +
+    '<line x1="112" y1="132" x2="208" y2="132" stroke="#3E2E24" stroke-width="1.5"/>' +
+    '<line x1="122" y1="120" x2="198" y2="120" stroke="#3E2E24" stroke-width="1.5"/>' +
+    worker(150, 116, VEST) +
+    '<g transform="translate(160,108) rotate(-30)"><rect x="-2" y="-12" width="4" height="12" fill="#5F6C74"/></g>'
+  ));
+
+  storyboard.push(page('windows_doors', 'Windows & doors',
+    'Openings get their frames, glazing, and doors fitted.',
+    '<rect x="120" y="120" width="90" height="52" fill="#D8D2C2"/>' +
+    '<rect x="184" y="132" width="22" height="22" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/>' +
+    worker(150, 150, VEST) +
+    '<g transform="translate(160,132)"><rect x="0" y="0" width="18" height="18" fill="#BFE3F2" stroke="#5B4636" stroke-width="2" opacity="0.9"/></g>'
+  ));
+
+  storyboard.push(page('cladding', 'Exterior cladding',
+    'The outside skin goes on — siding, brick veneer, or stucco, based on what you picked.',
+    '<rect x="120" y="120" width="90" height="52" fill="#C9975B"/>' +
+    '<line x1="120" y1="132" x2="210" y2="132" stroke="#00000022"/><line x1="120" y1="144" x2="210" y2="144" stroke="#00000022"/><line x1="120" y1="156" x2="210" y2="156" stroke="#00000022"/>' +
+    worker(215, 150, VEST) +
+    '<g transform="translate(202,138)"><rect x="0" y="0" width="16" height="10" fill="#C9975B" stroke="#5F6C74"/></g>'
+  ));
+
+  storyboard.push(page('rough_in', 'Plumbing & electrical rough-in',
+    'Pipes and wiring get run through the walls before they\'re closed up.',
+    '<rect x="120" y="118" width="90" height="54" fill="none" stroke="' + WOOD + '" stroke-width="4"/>' +
+    '<path d="M130 172 v-40 h20 v40" stroke="#2C6EBE" stroke-width="3" fill="none"/>' +
+    '<path d="M180 172 v-30 h20" stroke="#D93B3B" stroke-width="2" fill="none" stroke-dasharray="4 3"/>' +
+    worker(150, 150, VEST) +
+    '<g transform="translate(160,138)"><rect x="-2" y="-10" width="4" height="16" fill="#5F6C74"/></g>'
+  ));
+
+  storyboard.push(page('insulation', 'Insulation',
+    'Insulation batts go into the wall and ceiling cavities.',
+    '<rect x="120" y="118" width="90" height="54" fill="none" stroke="' + WOOD + '" stroke-width="4"/>' +
+    '<rect x="128" y="124" width="24" height="42" fill="#F2E6C8"/>' +
+    '<rect x="158" y="124" width="24" height="42" fill="#F2E6C8"/>' +
+    worker(200, 150, VEST) +
+    '<g transform="translate(188,140)"><rect x="0" y="0" width="16" height="20" fill="#F2E6C8" stroke="#C9975B"/></g>'
+  ));
+
+  storyboard.push(page('drywall_finish', 'Drywall & interior finishing',
+    'Walls get closed up, and interior finishing begins.',
+    '<rect x="120" y="118" width="90" height="54" fill="#EDEAdf" stroke="#00000022"/>' +
+    worker(215, 145, VEST) +
+    '<g transform="translate(196,120)"><rect x="0" y="0" width="26" height="40" fill="#F5F4EC" stroke="#C9C2A6"/></g>'
+  ));
+
+  storyboard.push(page('paint_fixtures', 'Paint & fixtures',
+    'Paint, flooring, and fixtures bring the interior to life.',
+    '<rect x="120" y="118" width="90" height="54" fill="#EAF3E2"/>' +
+    worker(150, 150, VEST) +
+    '<g transform="translate(158,130)"><rect x="-3" y="0" width="6" height="20" fill="#5F6C74"/><rect x="-9" y="-8" width="18" height="10" rx="2" fill="#2C6EBE"/></g>'
+  ));
+
+  storyboard.push(page('pool_construction', 'Digging & lining the pool',
+    'The pool gets excavated, shelled, and plumbed before it\'s filled.',
+    '<rect x="90" y="150" width="140" height="20" rx="6" fill="none" stroke="#5FB8D9" stroke-width="3" stroke-dasharray="5 4"/>' +
+    '<rect x="96" y="156" width="128" height="10" fill="#5FB8D9" opacity="0.4"/>' +
+    worker(250, 150, VEST) +
+    '<g transform="translate(238,138)"><line x1="0" y1="0" x2="18" y2="-16" stroke="#6B4A3A" stroke-width="3"/><path d="M18 -16 l10 -4 l-2 10 z" fill="#5F6C74"/></g>',
+    function(choices){ return choices && Array.isArray(choices.extras) && choices.extras.indexOf('pool') !== -1; }
+  ));
+
+  storyboard.push(page('tennis_court_build', 'Laying the tennis court',
+    'The court base gets graded, surfaced, and lined.',
+    '<rect x="20" y="150" width="140" height="20" fill="#2E8B57"/>' +
+    '<line x1="90" y1="150" x2="90" y2="170" stroke="#fff" stroke-width="1.5"/>' +
+    '<line x1="20" y1="160" x2="160" y2="160" stroke="#fff" stroke-width="1"/>' +
+    worker(220, 150, VEST) +
+    '<g transform="translate(208,140)"><rect x="-10" y="0" width="20" height="6" rx="2" fill="' + HAT + '"/></g>',
+    function(choices){ return choices && Array.isArray(choices.extras) && choices.extras.indexOf('tennis_court') !== -1; }
+  ));
+
+  storyboard.push(page('gym_fitout', 'Fitting out the home gym',
+    'Reinforced flooring goes in, then mirrors, mats, and equipment.',
+    '<rect x="120" y="118" width="90" height="54" fill="#EAEAEA"/>' +
+    '<rect x="128" y="150" width="74" height="22" fill="#5F6C74"/>' +
+    worker(190, 150, VEST) +
+    '<g transform="translate(178,142)"><circle cx="-8" cy="0" r="6" fill="#3E4A50"/><circle cx="8" cy="0" r="6" fill="#3E4A50"/><rect x="-8" y="-2" width="16" height="4" fill="#5F6C74"/></g>',
+    function(choices){ return choices && Array.isArray(choices.extras) && choices.extras.indexOf('gym') !== -1; }
+  ));
+
+  storyboard.push(page('sauna_install', 'Installing the sauna',
+    'The sauna\'s insulated shell, bench, and heater go in as one of the last interior fit-outs.',
+    '<rect x="130" y="122" width="60" height="50" fill="#7C5A3C"/>' +
+    '<rect x="138" y="150" width="44" height="14" fill="#5F6C74"/>' +
+    worker(210, 150, VEST) +
+    '<g transform="translate(198,140)"><rect x="-6" y="-6" width="12" height="12" fill="#D93B3B"/></g>',
+    function(choices){ return choices && Array.isArray(choices.extras) && choices.extras.indexOf('sauna') !== -1; }
+  ));
+
+  storyboard.push({
+    id: 'landscaping',
+    title: 'Landscaping & the yard',
+    caption: 'Paths, garden beds, fencing, and final grading finish off the outdoor space.',
+    svg: function(choices){
+      var extras = (choices && Array.isArray(choices.extras)) ? choices.extras : [];
+      var scene = '<rect x="0" y="172" width="320" height="38" fill="#EAF3E2"/>' +
+        worker(150, 150, VEST) +
+        '<g transform="translate(160,158)"><rect x="-2" y="-14" width="4" height="14" fill="#5F6C74"/></g>' +
+        '<circle cx="60" cy="165" r="9" fill="#5C9A4C"/><rect x="58" y="165" width="4" height="7" fill="#7C5A3C"/>' +
+        '<circle cx="260" cy="165" r="9" fill="#5C9A4C"/><rect x="258" y="165" width="4" height="7" fill="#7C5A3C"/>';
+      if(extras.indexOf('garage') !== -1) scene += '<rect x="230" y="148" width="40" height="24" fill="#C7CDD1"/><line x1="230" y1="158" x2="270" y2="158" stroke="#7C8B95"/>';
+      return '<svg viewBox="0 0 320 210" xmlns="http://www.w3.org/2000/svg">' +
+        '<rect x="0" y="0" width="320" height="210" fill="' + SKY + '"/>' +
+        '<line x1="0" y1="172" x2="320" y2="172" stroke="' + GROUND + '" stroke-width="4"/>' +
+        scene + '</svg>';
+    },
+  });
+
+  storyboard.push(page('handover', 'Move-in day',
+    'Final walkthrough, keys handed over — welcome home.',
+    '<rect x="115" y="110" width="90" height="62" fill="#D8D2C2"/>' +
+    '<polygon points="108,110 160,78 212,110" fill="#5B4636"/>' +
+    '<rect x="150" y="148" width="20" height="24" fill="#5B4636"/>' +
+    '<rect x="122" y="118" width="18" height="18" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/>' +
+    worker(90, 150, '#2C6EBE') +
+    '<text x="160" y="196" font-size="10" text-anchor="middle" fill="#387420">🔑 Welcome home</text>'
+  ));
+
+  HOUSE_MODULE.storyboard = storyboard;
+  window.LEGO_MODULES.push(HOUSE_MODULE);
+})();
