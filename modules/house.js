@@ -645,6 +645,32 @@ var HOUSE_MODULE = {
       ],
     },
     {
+      id: 'roof_material',
+      category: 'Envelope',
+      stage: 6,
+      title: 'Roof material',
+      showIf: (choices) => choices.roof_type !== 'flat',
+      watchFor: [
+        'Weight: tiles are heavy enough to need structural sign-off, especially on a retrofit or long spans',
+        'Manufacturer minimum pitch for the material vs. the pitch you just chose — metal and tile differ',
+        'Fire/BAL rating requirements for your site',
+        'Hail and wind-uplift rating for your region',
+        'Heritage/HOA color and material restrictions',
+      ],
+      prompt: 'What goes on top? This changes weight, cost, and the whole look of the house.',
+      options: [
+        { id: 'tiles', label: 'Terracotta / concrete tiles',
+          pros: ['Long lifespan, classic look', 'Excellent sound dampening in rain'],
+          cons: ['Heaviest option — structure must be rated for it', 'Individual tiles crack under foot traffic or hail'] },
+        { id: 'metal', label: 'Metal sheeting (Colorbond-style)',
+          pros: ['Lightweight, fast to install, great at shedding rain and snow', 'Good for bushfire-rated areas'],
+          cons: ['Noisier in heavy rain without insulation blanket', 'Dents from large hail'] },
+        { id: 'shingles', label: 'Asphalt shingles',
+          pros: ['Cheapest upfront, easy to repair in patches'],
+          cons: ['Shortest lifespan of the three', 'Performance suffers in extreme heat'] },
+      ],
+    },
+    {
       id: 'wall_structure_material',
       category: 'Envelope',
       stage: 6,
@@ -843,255 +869,369 @@ var HOUSE_MODULE = {
 
 /* ===================================================================
    STORYBOARD: "How it's actually built" — a page-by-page picture book
-   of the physical construction sequence (as opposed to the decisions
-   above). Each page is a standalone illustrated scene with a caption.
-   Purely visual/narrative — no choices, no pros/cons.
+   of the physical construction sequence, drawn in the same isometric
+   LEGO-instruction style as the live model (via window.ISO, loaded
+   from iso.js before this file).
 
-   FLEXIBLE PAGE LIST: a page can carry `showIf(choices) => bool`, same
-   mechanism as steps — the engine filters the storyboard by the final
-   choices before displaying it, so e.g. the pool-construction page only
-   appears if a pool was actually picked, and the second-storey framing
-   page only appears for a two-storey build.
+   Every page's `svg` is a function(choices) called at RENDER time, so:
+     - pages can reflect the user's actual material picks (cladding,
+       roof material, structural system), and
+     - window.ISO only needs to exist when a page is drawn, never at
+       parse time.
 
-   Every scene reuses a common "worker" figure (helmet + vest + legs)
-   positioned with an SVG <g transform="translate(x,y)">, with a
-   different tool/prop drawn around it per scene, so the art style
-   stays consistent without hand-drawing a whole new character each
-   time. Ground line + sky background match the rest of the app.
+   Pages can carry showIf(choices) — the engine filters by it, so the
+   book flexes from ~17 pages (nothing optional) to 24 (everything).
+
+   The core trick for the "instruction manual" feel: buildScene() draws
+   the SAME house at a cumulative build state on every page, so the
+   model visibly accumulates from bare baseplate to finished house,
+   with the newest part floating in on a drop arrow.
 =================================================================== */
 (function(){
   'use strict';
 
-  var SKY = '#DCEFF9', GROUND = '#B8C2A6', SKIN = '#E8B98A', VEST = '#E8792A',
-      PANTS = '#3E4A50', HAT = '#F5C518', WOOD = '#C9975B', METAL = '#9AA3A8';
+  var VB = '0 0 460 320';
+  var PLATE = '#59A63F';
+  var CLAD_COLOR = { wood_siding:'#C9975B', brick_veneer:'#B5502E', stucco:'#E8DFC9', fiber_cement:'#C7CDD1' };
+  var CLAD_TEX = { wood_siding:'wood', brick_veneer:'brick', stucco:'stucco', fiber_cement:'panel' };
+  var ROOF_COLOR = { tiles:'#C4623B', metal:'#93A7B0', shingles:'#6B5445' };
+  var FRAME_COLOR = { wood_frame:'#D8B27E', steel_frame:'#A7B4BC', masonry_concrete:'#B0B4B8' };
 
-  function worker(x, y, vestColor){
-    return '<g transform="translate(' + x + ',' + y + ')">' +
-      '<rect x="-6" y="18" width="5" height="22" fill="' + PANTS + '"/>' +
-      '<rect x="1" y="18" width="5" height="22" fill="' + PANTS + '"/>' +
-      '<rect x="-8" y="-6" width="16" height="26" rx="3" fill="' + (vestColor || VEST) + '"/>' +
-      '<circle cx="0" cy="-16" r="8" fill="' + SKIN + '"/>' +
-      '<path d="M-10 -19 a10 10 0 0 1 20 0 z" fill="' + HAT + '"/>' +
-    '</g>';
+  // House footprint on the storyboard baseplate (units)
+  var HX = 3, HY = 2, HW = 8, HD = 6, WALL_H = 3.6;
+
+  function S(){ return window.ISO.scene(200, 96, 11); }
+
+  function svgWrap(inner){
+    return '<svg viewBox="' + VB + '" xmlns="http://www.w3.org/2000/svg">' + inner + '</svg>';
   }
 
-  function page(id, title, caption, sceneSVG, showIf){
-    var p = { id: id, title: title, caption: caption,
-      svg: '<svg viewBox="0 0 320 210" xmlns="http://www.w3.org/2000/svg">' +
-        '<rect x="0" y="0" width="320" height="210" fill="' + SKY + '"/>' +
-        '<line x1="0" y1="172" x2="320" y2="172" stroke="' + GROUND + '" stroke-width="4"/>' +
-        sceneSVG + '</svg>' };
+  function roofFor(s, x, y, z, w, d, choices, colorOverride){
+    var type = choices.roof_type || 'gable';
+    var rise = choices.roof_pitch === 'steep' ? 3.4 : choices.roof_pitch === 'low' ? 1.6 : 2.5;
+    var color = colorOverride || ROOF_COLOR[choices.roof_material] || '#5B4636';
+    var mat = choices.roof_material === 'tiles' ? 'tile' : choices.roof_material === 'metal' ? 'metal' : choices.roof_material === 'shingles' ? 'shingle' : null;
+    if(type === 'flat') return s.flatRoof(x, y, z, w, d, rise, '#6B7378');
+    if(type === 'shed_mono') return s.shedRoof(x, y, z, w, d, rise, color, mat);
+    if(type === 'hip') return s.hipRoof(x, y, z, w, d, rise, color, mat);
+    return s.gableRoof(x, y, z, w, d, rise, color, mat);
+  }
+
+  /* buildScene(choices, state) — the cumulative model.
+     state: { oldHouse, rubble, trench, slab, frame, frame2, walls, walls2,
+              roofFrame, roof, windows, interior ('insul'|'dry'|'paint'),
+              tree, pool, tennis, sauna, gym, done } */
+  function buildScene(choices, st){
+    choices = choices || {}; st = st || {};
+    var s = S(), g = '';
+    var floors = choices.stories === 'two' ? 2 : 1;
+    var clad = CLAD_COLOR[choices.exterior_cladding] || '#D8D2C2';
+    var cladTex = CLAD_TEX[choices.exterior_cladding] || null;
+    var frameC = FRAME_COLOR[choices.structural_system] || '#D8B27E';
+    var fz = 0.6;               // baseplate top
+    var slabTop = fz + 0.7;     // foundation slab top
+
+    g += s.shadow(-1, -1, 22, 14);
+    g += s.box(0, 0, 0, 20, 12, fz, PLATE, {studs:{step:2}});
+
+    if(st.oldHouse){
+      g += s.box(HX+1, HY+1, fz, 6, 4.5, 3, '#9AA0A6', {texture:'panel'});
+      g += s.gableRoof(HX+1, HY+1, fz+3, 6, 4.5, 1.8, '#7C848B', null);
+      if(st.oldHouse === 'condemned'){
+        var A = s.pt(HX+1, HY+5.5, fz+4.8), B = s.pt(HX+7, HY+5.5, fz);
+        g += '<line x1="'+A[0]+'" y1="'+A[1]+'" x2="'+B[0]+'" y2="'+B[1]+'" stroke="#D93B3B" stroke-width="4" stroke-dasharray="8 5" stroke-linecap="round"/>';
+        var A2 = s.pt(HX+7, HY+5.5, fz+4.8), B2 = s.pt(HX+1, HY+5.5, fz);
+        g += '<line x1="'+A2[0]+'" y1="'+A2[1]+'" x2="'+B2[0]+'" y2="'+B2[1]+'" stroke="#D93B3B" stroke-width="4" stroke-dasharray="8 5" stroke-linecap="round"/>';
+      }
+      return g; // old house pages never show the new build
+    }
+
+    if(st.rubble){
+      g += s.box(HX+1.5, HY+2, fz, 2, 1.4, 0.8, '#9AA0A6', {outline:false});
+      g += s.box(HX+3.8, HY+2.8, fz, 1.4, 1, 0.6, '#7C848B', {outline:false});
+      g += s.box(HX+2.6, HY+3.6, fz, 1, 0.8, 0.5, '#B0B4B8', {outline:false});
+    }
+    if(st.trench){
+      g += s.flat(HX, HY, fz + 0.02, HW, HD, '#8A6B4F');
+      g += s.flat(HX+0.5, HY+0.5, fz + 0.03, HW-1, HD-1, '#6E543D');
+    }
+    if(st.slab){
+      g += s.box(HX, HY, fz, HW, HD, 0.7, '#9AA3A8', {studs: st.walls || st.frame ? false : {step:2}});
+    }
+    if(st.frame && !st.walls){
+      // stud frame: verticals + top plate
+      for(var i = 0; i <= HW; i += 2) g += s.box(HX+i-0.15, HY+HD-0.3, slabTop, 0.3, 0.3, WALL_H, frameC, {outline:false});
+      for(var j = 2; j < HD; j += 2) g += s.box(HX+HW-0.3, HY+j-0.15, slabTop, 0.3, 0.3, WALL_H, frameC, {outline:false});
+      g += s.box(HX-0.15, HY-0.15, slabTop+WALL_H, HW+0.3, HD+0.3, 0.3, frameC, {outline:false});
+      if(st.frame2){
+        for(var i2 = 0; i2 <= HW; i2 += 2) g += s.box(HX+i2-0.15, HY+HD-0.3, slabTop+WALL_H+0.3, 0.3, 0.3, WALL_H, frameC, {outline:false});
+        g += s.box(HX-0.15, HY-0.15, slabTop+2*WALL_H+0.3, HW+0.3, HD+0.3, 0.3, frameC, {outline:false});
+      }
+    }
+    var wallsTop = slabTop;
+    if(st.walls){
+      var useClad = st.cladApplied;
+      var wallColor = useClad ? clad : (st.interior === 'insul' ? '#F2E6C8' : st.interior === 'dry' || st.interior === 'paint' ? '#EDEADF' : '#E3DCCB');
+      var wallTex = useClad ? cladTex : null;
+      var nFloors = st.walls2 ? floors : 1;
+      for(var f = 0; f < nFloors; f++){
+        g += s.box(HX, HY, slabTop + f*WALL_H, HW, HD, WALL_H, wallColor, {texture: wallTex});
+      }
+      wallsTop = slabTop + nFloors*WALL_H;
+    }
+    if(st.walls && st.windows){
+      var Yd = HY + HD;
+      g += s.windowLeft(HX+0.9, HX+2.4, Yd, slabTop+1.2, slabTop+2.6);
+      g += s.windowLeft(HX+5.6, HX+7.1, Yd, slabTop+1.2, slabTop+2.6);
+      g += s.doorLeft(HX+3.5, HX+4.5, Yd, slabTop, slabTop+2.6);
+      if(st.walls2 && floors === 2){
+        g += s.windowLeft(HX+0.9, HX+2.4, Yd, slabTop+WALL_H+1.2, slabTop+WALL_H+2.6);
+        g += s.windowLeft(HX+5.6, HX+7.1, Yd, slabTop+WALL_H+1.2, slabTop+WALL_H+2.6);
+      }
+    }
+    if(st.roofFrame && !st.roof){
+      var rise0 = choices.roof_pitch === 'steep' ? 3.4 : choices.roof_pitch === 'low' ? 1.6 : 2.5;
+      g += s.line([HX, HY+HD/2, wallsTop+rise0], [HX+HW, HY+HD/2, wallsTop+rise0], FRAME_COLOR.wood_frame, 3);
+      for(var rf = 0; rf <= HW; rf += 2){
+        g += s.line([HX+rf, HY+HD, wallsTop], [HX+rf, HY+HD/2, wallsTop+rise0], FRAME_COLOR.wood_frame, 2.4);
+      }
+    }
+    if(st.roof){
+      g += roofFor(s, HX, HY, wallsTop, HW, HD, choices);
+    }
+    if(st.tree){
+      var rise1 = choices.roof_pitch === 'steep' ? 3.4 : choices.roof_pitch === 'low' ? 1.6 : 2.5;
+      g += s.tree(HX+HW/2, HY+HD/2 - 0.5, wallsTop - 1, rise1 + 3.4);
+    }
+    if(st.pool){
+      g += s.flat(14.5, 8.2, fz+0.05, 4.5, 3, '#4FA8CC');
+      g += s.flat(14.8, 8.5, fz+0.06, 3.9, 2.4, '#6FC2E0');
+    }
+    if(st.tennis){
+      g += s.flat(0.8, 0.8, fz+0.05, 5.5, 3.6, '#2E8B57');
+      g += s.line([3.55, 0.8, fz+0.07], [3.55, 4.4, fz+0.07], '#FFFFFF', 1.4);
+      g += s.poly([[1.1,1.1,fz+0.07],[6.0,1.1,fz+0.07],[6.0,4.1,fz+0.07],[1.1,4.1,fz+0.07]], 'none', ' stroke="#FFFFFF" stroke-width="1.2"');
+    }
+    if(st.sauna){
+      g += s.box(0.9, 8.6, fz, 2.4, 2.2, 2, '#8A6242', {texture:'wood'});
+      g += s.gableRoof(0.9, 8.6, fz+2, 2.4, 2.2, 1, '#5B4636', null);
+    }
+    if(st.gym){
+      g += s.box(12.2, 10.1, fz, 0.7, 0.7, 0.7, '#3E4A50', {outline:false});
+      g += s.box(13.8, 10.1, fz, 0.7, 0.7, 0.7, '#3E4A50', {outline:false});
+      g += s.box(12.8, 10.3, fz+0.2, 1.1, 0.3, 0.25, '#5F6C74', {outline:false});
+    }
+    if(st.done){
+      g += s.tree(18, 2.2, fz, 2.6);
+      g += s.tree(1.6, 6.4, fz, 2.2);
+    }
+    return g;
+  }
+
+  function fig(x, y, torso){ return window.ISO.minifig(x, y, 1, torso || '#E8792A'); }
+
+  // Convenience: a page whose svg is buildScene(state) + extra overlay
+  function scenePage(id, title, caption, stateFn, overlayFn, showIf){
+    var p = {
+      id: id, title: title, caption: caption,
+      svg: function(choices){
+        var st = stateFn(choices || {});
+        var extra = overlayFn ? overlayFn(S(), choices || {}) : '';
+        return svgWrap(buildScene(choices, st) + extra);
+      },
+    };
     if(showIf) p.showIf = showIf;
     return p;
   }
 
   var storyboard = [];
 
-  storyboard.push(page('demolition', 'Knocking it down',
+  storyboard.push(scenePage('demolition', 'Knocking it down',
     'The old structure comes down first.',
-    '<g opacity="0.6"><rect x="180" y="112" width="70" height="60" fill="#9AA0A6"/><polygon points="174,112 215,84 256,112" fill="#7C848B"/></g>' +
-    '<line x1="180" y1="112" x2="250" y2="172" stroke="#D93B3B" stroke-width="3" stroke-dasharray="6 4"/>' +
-    worker(90, 150, VEST) +
-    '<g transform="translate(108,132) rotate(-25)"><rect x="-3" y="-38" width="6" height="38" fill="#6B4A3A"/><rect x="-14" y="-46" width="24" height="12" rx="2" fill="#5F6C74"/></g>'
+    function(){ return { oldHouse: 'condemned' }; },
+    function(s){ return fig(90, 268) +
+      '<g transform="translate(108,236) rotate(-28)"><rect x="-3" y="-30" width="6" height="30" fill="#6B4A3A" rx="2"/><rect x="-13" y="-40" width="26" height="12" rx="3" fill="#5F6C74"/></g>'; }
   ));
 
-  storyboard.push(page('clearing', 'Clearing the site',
-    'Debris and materials get hauled away before anything new goes in.',
-    '<rect x="150" y="150" width="60" height="18" rx="3" fill="#9AA0A6" opacity="0.7"/>' +
-    '<rect x="158" y="140" width="20" height="14" fill="#7C848B" opacity="0.7"/>' +
-    worker(90, 150, VEST) +
-    '<g transform="translate(100,158)"><rect x="0" y="-6" width="34" height="10" rx="2" fill="#5F6C74"/><circle cx="4" cy="6" r="6" fill="#3E4A50"/><line x1="34" y1="-3" x2="46" y2="-16" stroke="#3E4A50" stroke-width="3"/></g>'
+  storyboard.push(scenePage('clearing', 'Clearing the site',
+    'Debris gets hauled away, services capped, and the slate wiped clean.',
+    function(){ return { rubble: true }; },
+    function(s){ return fig(340, 262) +
+      '<g transform="translate(352,252)"><rect x="0" y="-12" width="40" height="14" rx="3" fill="#5F6C74"/><rect x="4" y="-24" width="18" height="12" rx="2" fill="#7C8B95"/><circle cx="9" cy="6" r="7" fill="#3E4A50"/><circle cx="31" cy="6" r="7" fill="#3E4A50"/></g>'; }
   ));
 
-  storyboard.push(page('survey', 'Checking the easement',
-    'A surveyor marks the boundary and easement lines before anything else happens.',
-    '<line x1="20" y1="150" x2="300" y2="150" stroke="#D93B3B" stroke-width="2" stroke-dasharray="8 5"/>' +
-    '<text x="160" y="142" font-size="9" text-anchor="middle" fill="#B92E2E">easement line</text>' +
-    worker(220, 150, '#2C6EBE') +
-    '<g transform="translate(232,120)"><line x1="0" y1="0" x2="0" y2="32" stroke="#3E4A50" stroke-width="3"/><line x1="-10" y1="32" x2="10" y2="32" stroke="#3E4A50" stroke-width="3"/><rect x="-6" y="-10" width="12" height="10" fill="#5F6C74"/></g>'
+  storyboard.push(scenePage('survey', 'Checking the easement',
+    'A surveyor marks boundaries and the easement line before anything is dug.',
+    function(){ return {}; },
+    function(s){
+      var A = s.pt(-0.5, 10.5, 0.7), B = s.pt(20.5, 10.5, 0.7);
+      return '<line x1="'+A[0].toFixed(1)+'" y1="'+A[1].toFixed(1)+'" x2="'+B[0].toFixed(1)+'" y2="'+B[1].toFixed(1)+'" stroke="#D93B3B" stroke-width="2.5" stroke-dasharray="9 6"/>' +
+        '<text x="230" y="' + (A[1]-8).toFixed(1) + '" font-size="11" text-anchor="middle" fill="#B92E2E" font-weight="bold">easement — keep clear</text>' +
+        fig(350, 250, '#2C6EBE') +
+        '<g transform="translate(374,232)"><line x1="0" y1="0" x2="0" y2="26" stroke="#3E4A50" stroke-width="3"/><line x1="-9" y1="26" x2="9" y2="26" stroke="#3E4A50" stroke-width="3"/><rect x="-7" y="-10" width="14" height="10" rx="2" fill="#5F6C74"/></g>';
+    }
   ));
 
-  storyboard.push(page('leveling', 'Leveling the land',
-    'The ground gets graded flat (or terraced on a slope) before foundations go in.',
-    '<polygon points="40,172 280,172 280,158 40,166" fill="#C9C2A6"/>' +
-    worker(150, 150, VEST) +
-    '<g transform="translate(162,140)"><rect x="0" y="0" width="40" height="6" rx="2" fill="' + HAT + '" stroke="#3E4A50"/><circle cx="6" cy="3" r="2" fill="#3E4A50"/><circle cx="34" cy="3" r="2" fill="#3E4A50"/></g>'
+  storyboard.push(scenePage('leveling', 'Leveling the land',
+    'The ground is graded flat and compacted, ready for setting out.',
+    function(){ return {}; },
+    function(s){ return fig(120, 262) +
+      '<g transform="translate(140,244)"><rect x="0" y="0" width="52" height="7" rx="3" fill="#F5C518" stroke="#3E4A50"/><circle cx="9" cy="4" r="2.4" fill="#3E4A50"/><circle cx="43" cy="4" r="2.4" fill="#3E4A50"/></g>'; }
   ));
 
-  storyboard.push(page('excavation', 'Digging the footings',
-    'Trenches are dug to the foundation\'s exact depth and layout.',
-    '<rect x="100" y="162" width="120" height="10" fill="#7C5A3C"/>' +
-    '<line x1="100" y1="160" x2="220" y2="160" stroke="#fff" stroke-width="1" stroke-dasharray="3 3"/>' +
-    worker(90, 150, VEST) +
-    '<g transform="translate(102,158)"><line x1="0" y1="0" x2="18" y2="-20" stroke="#6B4A3A" stroke-width="3"/><path d="M18 -20 l10 -4 l-2 10 z" fill="#5F6C74"/></g>'
+  storyboard.push(scenePage('excavation', 'Digging the footings',
+    'Trenches are dug to the engineered depth, following the set-out lines exactly.',
+    function(){ return { trench: true }; },
+    function(s){ return fig(110, 266) +
+      '<g transform="translate(126,250)"><line x1="0" y1="0" x2="20" y2="-24" stroke="#6B4A3A" stroke-width="3.4" stroke-linecap="round"/><path d="M20 -24 l12 -5 l-3 12 z" fill="#5F6C74"/></g>'; }
   ));
 
-  storyboard.push(page('foundation_pour', 'Pouring the foundation',
-    'Concrete is poured into the formwork and left to cure.',
-    '<rect x="100" y="160" width="120" height="12" fill="' + METAL + '"/>' +
-    '<rect x="96" y="150" width="8" height="22" fill="' + WOOD + '"/><rect x="216" y="150" width="8" height="22" fill="' + WOOD + '"/>' +
-    '<g transform="translate(250,110)"><rect x="-14" y="-10" width="40" height="26" rx="4" fill="#D93B3B"/><circle cx="-8" cy="18" r="8" fill="#3E4A50"/><circle cx="18" cy="18" r="8" fill="#3E4A50"/><polygon points="26,-4 42,6 26,16" fill="#B8C2A6"/></g>' +
-    worker(150, 150, VEST)
+  storyboard.push(scenePage('foundation_pour', 'Pouring the foundation',
+    'The slab drops in: concrete poured, screeded flat, then left to cure.',
+    function(){ return { slab: true }; },
+    function(s){
+      return s.box(HX+1.5, HY+1.5, 8.4, 5, 3, 0.7, '#B7BEC2', {outline:true, studs:{step:2}}) +
+        s.arrow(HX+4, HY+3, 8.2, 2.4) + fig(376, 256);
+    }
   ));
 
-  storyboard.push(page('framing', 'Framing the walls',
-    'The timber (or steel) skeleton of the ground floor goes up.',
-    '<rect x="110" y="120" width="8" height="50" fill="' + WOOD + '"/><rect x="150" y="120" width="8" height="50" fill="' + WOOD + '"/><rect x="190" y="120" width="8" height="50" fill="' + WOOD + '"/>' +
-    '<rect x="105" y="118" width="98" height="6" fill="' + WOOD + '"/>' +
-    worker(130, 150, VEST) +
-    '<g transform="translate(140,138) rotate(20)"><rect x="-3" y="-16" width="6" height="16" fill="#5F6C74"/><rect x="-9" y="-20" width="18" height="7" rx="2" fill="#3E4A50"/></g>'
+  storyboard.push(scenePage('framing', 'Framing the walls',
+    'The skeleton goes up — stud by stud along the slab edges.',
+    function(){ return { slab: true, frame: true }; },
+    function(s, choices){
+      var c = FRAME_COLOR[choices.structural_system] || '#D8B27E';
+      return s.box(6, 9.5, 6.5, 0.35, 0.35, 3.4, c, {outline:false}) + s.arrow(6.2, 9.7, 6.2, 2.2) + fig(372, 258);
+    }
   ));
 
-  storyboard.push(page('second_floor_framing', 'Framing the second storey',
-    'With two floors chosen, the upper level gets framed before the roof goes on.',
-    '<rect x="105" y="118" width="98" height="6" fill="' + WOOD + '" opacity="0.5"/>' +
-    '<rect x="110" y="72" width="8" height="48" fill="' + WOOD + '"/><rect x="150" y="72" width="8" height="48" fill="' + WOOD + '"/><rect x="190" y="72" width="8" height="48" fill="' + WOOD + '"/>' +
-    '<rect x="105" y="70" width="98" height="6" fill="' + WOOD + '"/>' +
-    worker(170, 100, VEST) +
-    '<g transform="translate(180,88) rotate(20)"><rect x="-3" y="-16" width="6" height="16" fill="#5F6C74"/><rect x="-9" y="-20" width="18" height="7" rx="2" fill="#3E4A50"/></g>',
+  storyboard.push(scenePage('second_floor_framing', 'Framing the second storey',
+    'Two floors chosen — the upper level frames up before the roof goes on.',
+    function(){ return { slab: true, frame: true, frame2: true }; },
+    function(s){ return fig(88, 252); },
     function(choices){ return choices && choices.stories === 'two'; }
   ));
 
-  storyboard.push(page('roof_framing', 'Framing the roof',
-    'Roof trusses go up next, giving the house its shape.',
-    '<rect x="110" y="140" width="90" height="32" fill="' + WOOD + '" opacity="0.35"/>' +
-    '<polygon points="105,140 155,100 205,140" fill="none" stroke="' + WOOD + '" stroke-width="5"/>' +
-    '<line x1="130" y1="120" x2="180" y2="120" stroke="' + WOOD + '" stroke-width="4"/>' +
-    worker(155, 108, VEST) +
-    '<g transform="translate(168,96) rotate(-15)"><rect x="-3" y="-14" width="6" height="14" fill="#5F6C74"/><rect x="-9" y="-18" width="18" height="6" rx="2" fill="#3E4A50"/></g>'
+  storyboard.push(scenePage('roof_framing', 'Framing the roof',
+    'Trusses swing up and lock in, giving the house its final shape.',
+    function(choices){ return { slab: true, walls: true, walls2: true, windows: false, roofFrame: true }; },
+    function(s, choices){
+      var floors = choices.stories === 'two' ? 2 : 1;
+      var top = 0.6 + 0.7 + floors*3.6;
+      return s.arrow(HX+HW/2, HY+HD/2, top + 6, top + 2.8) + fig(374, 258);
+    }
   ));
 
-  storyboard.push(page('tree_feature', 'Building around the tree',
-    'The roof and floor need a carefully engineered opening for the tree to grow through.',
-    '<polygon points="100,140 160,96 220,140" fill="' + WOOD + '" opacity="0.4"/>' +
-    '<circle cx="160" cy="118" r="14" fill="none" stroke="#D93B3B" stroke-width="2" stroke-dasharray="4 3"/>' +
-    '<rect x="156" y="118" width="8" height="54" fill="#7C5A3C"/><circle cx="160" cy="104" r="20" fill="#5C9A4C"/>' +
-    worker(120, 150, VEST) +
-    '<g transform="translate(132,138)"><rect x="-2" y="-12" width="4" height="12" fill="#5F6C74"/></g>',
+  storyboard.push(scenePage('tree_feature', 'Building around the tree',
+    'The roof needs an engineered, waterproofed opening for the trunk to grow through.',
+    function(){ return { slab: true, walls: true, walls2: true, roofFrame: true, tree: true }; },
+    function(s){ return fig(92, 258); },
     function(choices){ return choices && Array.isArray(choices.extras) && choices.extras.indexOf('tree_in_house') !== -1; }
   ));
 
-  storyboard.push(page('roofing', 'Roofing',
-    'The roof gets sheathed and covered — shingles, tile, or metal, whatever you chose earlier.',
-    '<polygon points="100,140 160,96 220,140" fill="#5B4636"/>' +
-    '<line x1="112" y1="132" x2="208" y2="132" stroke="#3E2E24" stroke-width="1.5"/>' +
-    '<line x1="122" y1="120" x2="198" y2="120" stroke="#3E2E24" stroke-width="1.5"/>' +
-    worker(150, 116, VEST) +
-    '<g transform="translate(160,108) rotate(-30)"><rect x="-2" y="-12" width="4" height="12" fill="#5F6C74"/></g>'
+  storyboard.push(scenePage('roofing', 'Roofing',
+    'The covering you chose goes on — course by course from the eaves up.',
+    function(){ return { slab: true, walls: true, walls2: true, roof: true, tree: false }; },
+    function(s, choices){
+      var floors = choices.stories === 'two' ? 2 : 1;
+      var top = 0.6 + 0.7 + floors*3.6;
+      return s.arrow(HX+HW/2, HY+HD/2, top + 6.4, top + 3.4) + fig(88, 254);
+    }
   ));
 
-  storyboard.push(page('windows_doors', 'Windows & doors',
-    'Openings get their frames, glazing, and doors fitted.',
-    '<rect x="120" y="120" width="90" height="52" fill="#D8D2C2"/>' +
-    '<rect x="184" y="132" width="22" height="22" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/>' +
-    worker(150, 150, VEST) +
-    '<g transform="translate(160,132)"><rect x="0" y="0" width="18" height="18" fill="#BFE3F2" stroke="#5B4636" stroke-width="2" opacity="0.9"/></g>'
+  storyboard.push(scenePage('windows_doors', 'Windows & doors',
+    'Openings get frames, glazing, and doors — the house locks up.',
+    function(){ return { slab: true, walls: true, walls2: true, roof: true, windows: true }; },
+    function(s){
+      return s.windowLeft(12.6, 14.1, 12.2, 4.4, 5.8) + s.arrow(13.3, 12.2, 4.2, 2.6) + fig(84, 258);
+    }
   ));
 
-  storyboard.push(page('cladding', 'Exterior cladding',
-    'The outside skin goes on — siding, brick veneer, or stucco, based on what you picked.',
-    '<rect x="120" y="120" width="90" height="52" fill="#C9975B"/>' +
-    '<line x1="120" y1="132" x2="210" y2="132" stroke="#00000022"/><line x1="120" y1="144" x2="210" y2="144" stroke="#00000022"/><line x1="120" y1="156" x2="210" y2="156" stroke="#00000022"/>' +
-    worker(215, 150, VEST) +
-    '<g transform="translate(202,138)"><rect x="0" y="0" width="16" height="10" fill="#C9975B" stroke="#5F6C74"/></g>'
+  storyboard.push(scenePage('cladding', 'Exterior cladding',
+    'The visible skin goes on — the material you picked, wrapped around the frame.',
+    function(){ return { slab: true, walls: true, walls2: true, roof: true, windows: true, cladApplied: true }; },
+    function(s){ return fig(374, 260); }
   ));
 
-  storyboard.push(page('rough_in', 'Plumbing & electrical rough-in',
-    'Pipes and wiring get run through the walls before they\'re closed up.',
-    '<rect x="120" y="118" width="90" height="54" fill="none" stroke="' + WOOD + '" stroke-width="4"/>' +
-    '<path d="M130 172 v-40 h20 v40" stroke="#2C6EBE" stroke-width="3" fill="none"/>' +
-    '<path d="M180 172 v-30 h20" stroke="#D93B3B" stroke-width="2" fill="none" stroke-dasharray="4 3"/>' +
-    worker(150, 150, VEST) +
-    '<g transform="translate(160,138)"><rect x="-2" y="-10" width="4" height="16" fill="#5F6C74"/></g>'
+  storyboard.push(scenePage('rough_in', 'Plumbing & electrical rough-in',
+    'Pipes and wiring run through the open walls before anything closes up.',
+    function(){ return { slab: true, walls: true, walls2: true, roof: true, windows: true, cladApplied: true }; },
+    function(s){
+      var A = s.pt(4.4, 8, 1.3), B = s.pt(4.4, 8, 4.2), C = s.pt(6.4, 8, 4.2);
+      return '<path d="M '+A[0].toFixed(1)+' '+A[1].toFixed(1)+' L '+B[0].toFixed(1)+' '+B[1].toFixed(1)+' L '+C[0].toFixed(1)+' '+C[1].toFixed(1)+'" stroke="#2C6EBE" stroke-width="3.4" fill="none" stroke-linecap="round"/>' +
+        '<circle cx="'+C[0].toFixed(1)+'" cy="'+C[1].toFixed(1)+'" r="3.4" fill="#2C6EBE"/>' + fig(96, 260);
+    }
   ));
 
-  storyboard.push(page('insulation', 'Insulation',
-    'Insulation batts go into the wall and ceiling cavities.',
-    '<rect x="120" y="118" width="90" height="54" fill="none" stroke="' + WOOD + '" stroke-width="4"/>' +
-    '<rect x="128" y="124" width="24" height="42" fill="#F2E6C8"/>' +
-    '<rect x="158" y="124" width="24" height="42" fill="#F2E6C8"/>' +
-    worker(200, 150, VEST) +
-    '<g transform="translate(188,140)"><rect x="0" y="0" width="16" height="20" fill="#F2E6C8" stroke="#C9975B"/></g>'
+  storyboard.push(scenePage('insulation', 'Insulation',
+    'Batts fill every wall and ceiling cavity — the invisible layer that pays rent forever.',
+    function(){ return { slab: true, walls: true, walls2: true, roof: true, windows: true, interior: 'insul' }; },
+    function(s){
+      return s.box(13.6, 9.4, 0.6, 1.4, 1, 1.6, '#F2E6C8', {texture:'wood'}) + fig(360, 262);
+    }
   ));
 
-  storyboard.push(page('drywall_finish', 'Drywall & interior finishing',
-    'Walls get closed up, and interior finishing begins.',
-    '<rect x="120" y="118" width="90" height="54" fill="#EDEAdf" stroke="#00000022"/>' +
-    worker(215, 145, VEST) +
-    '<g transform="translate(196,120)"><rect x="0" y="0" width="26" height="40" fill="#F5F4EC" stroke="#C9C2A6"/></g>'
+  storyboard.push(scenePage('drywall_finish', 'Drywall & interior finishing',
+    'Walls close up and interiors take shape — sheets, set, sand.',
+    function(){ return { slab: true, walls: true, walls2: true, roof: true, windows: true, interior: 'dry' }; },
+    function(s){ return fig(90, 256) + '<rect x="104" y="212" width="26" height="40" fill="#F5F4EC" stroke="#C9C2A6" rx="2"/>'; }
   ));
 
-  storyboard.push(page('paint_fixtures', 'Paint & fixtures',
-    'Paint, flooring, and fixtures bring the interior to life.',
-    '<rect x="120" y="118" width="90" height="54" fill="#EAF3E2"/>' +
-    worker(150, 150, VEST) +
-    '<g transform="translate(158,130)"><rect x="-3" y="0" width="6" height="20" fill="#5F6C74"/><rect x="-9" y="-8" width="18" height="10" rx="2" fill="#2C6EBE"/></g>'
+  storyboard.push(scenePage('paint_fixtures', 'Paint & fixtures',
+    'Color, flooring, lights, taps — the house starts feeling like a home.',
+    function(){ return { slab: true, walls: true, walls2: true, roof: true, windows: true, cladApplied: true }; },
+    function(s){ return fig(88, 258) + '<g transform="translate(102,226)"><rect x="-3" y="0" width="6" height="20" rx="2" fill="#5F6C74"/><rect x="-10" y="-9" width="20" height="11" rx="3" fill="#2C6EBE"/></g>'; }
   ));
 
-  storyboard.push(page('pool_construction', 'Digging & lining the pool',
-    'The pool gets excavated, shelled, and plumbed before it\'s filled.',
-    '<rect x="90" y="150" width="140" height="20" rx="6" fill="none" stroke="#5FB8D9" stroke-width="3" stroke-dasharray="5 4"/>' +
-    '<rect x="96" y="156" width="128" height="10" fill="#5FB8D9" opacity="0.4"/>' +
-    worker(250, 150, VEST) +
-    '<g transform="translate(238,138)"><line x1="0" y1="0" x2="18" y2="-16" stroke="#6B4A3A" stroke-width="3"/><path d="M18 -16 l10 -4 l-2 10 z" fill="#5F6C74"/></g>',
+  storyboard.push(scenePage('pool_construction', 'Digging & lining the pool',
+    'Excavate, shell, waterproof, plumb — then the fun part: filling it.',
+    function(){ return { slab: true, walls: true, walls2: true, roof: true, windows: true, cladApplied: true, pool: true }; },
+    function(s){ return s.arrow(16.7, 9.7, 5.4, 1.6) + fig(300, 272); },
     function(choices){ return choices && Array.isArray(choices.extras) && choices.extras.indexOf('pool') !== -1; }
   ));
 
-  storyboard.push(page('tennis_court_build', 'Laying the tennis court',
-    'The court base gets graded, surfaced, and lined.',
-    '<rect x="20" y="150" width="140" height="20" fill="#2E8B57"/>' +
-    '<line x1="90" y1="150" x2="90" y2="170" stroke="#fff" stroke-width="1.5"/>' +
-    '<line x1="20" y1="160" x2="160" y2="160" stroke="#fff" stroke-width="1"/>' +
-    worker(220, 150, VEST) +
-    '<g transform="translate(208,140)"><rect x="-10" y="0" width="20" height="6" rx="2" fill="' + HAT + '"/></g>',
+  storyboard.push(scenePage('tennis_court_build', 'Laying the tennis court',
+    'Base graded and drained, surface laid, lines marked, net up.',
+    function(){ return { slab: true, walls: true, walls2: true, roof: true, windows: true, cladApplied: true, tennis: true }; },
+    function(s){ return s.arrow(3.5, 2.6, 4.6, 1.2) + fig(360, 250); },
     function(choices){ return choices && Array.isArray(choices.extras) && choices.extras.indexOf('tennis_court') !== -1; }
   ));
 
-  storyboard.push(page('gym_fitout', 'Fitting out the home gym',
-    'Reinforced flooring goes in, then mirrors, mats, and equipment.',
-    '<rect x="120" y="118" width="90" height="54" fill="#EAEAEA"/>' +
-    '<rect x="128" y="150" width="74" height="22" fill="#5F6C74"/>' +
-    worker(190, 150, VEST) +
-    '<g transform="translate(178,142)"><circle cx="-8" cy="0" r="6" fill="#3E4A50"/><circle cx="8" cy="0" r="6" fill="#3E4A50"/><rect x="-8" y="-2" width="16" height="4" fill="#5F6C74"/></g>',
+  storyboard.push(scenePage('gym_fitout', 'Fitting out the home gym',
+    'Reinforced floor first, then mirrors, mats, and the heavy stuff.',
+    function(){ return { slab: true, walls: true, walls2: true, roof: true, windows: true, cladApplied: true, gym: true }; },
+    function(s){ return s.arrow(13.2, 10.4, 3.6, 1.4) + fig(320, 274); },
     function(choices){ return choices && Array.isArray(choices.extras) && choices.extras.indexOf('gym') !== -1; }
   ));
 
-  storyboard.push(page('sauna_install', 'Installing the sauna',
-    'The sauna\'s insulated shell, bench, and heater go in as one of the last interior fit-outs.',
-    '<rect x="130" y="122" width="60" height="50" fill="#7C5A3C"/>' +
-    '<rect x="138" y="150" width="44" height="14" fill="#5F6C74"/>' +
-    worker(210, 150, VEST) +
-    '<g transform="translate(198,140)"><rect x="-6" y="-6" width="12" height="12" fill="#D93B3B"/></g>',
+  storyboard.push(scenePage('sauna_install', 'Installing the sauna',
+    'Insulated timber shell, bench, heater, dedicated circuit — done.',
+    function(){ return { slab: true, walls: true, walls2: true, roof: true, windows: true, cladApplied: true, sauna: true }; },
+    function(s){ return s.arrow(2.1, 9.7, 6, 3.4) + fig(140, 286); },
     function(choices){ return choices && Array.isArray(choices.extras) && choices.extras.indexOf('sauna') !== -1; }
   ));
 
-  storyboard.push({
-    id: 'landscaping',
-    title: 'Landscaping & the yard',
-    caption: 'Paths, garden beds, fencing, and final grading finish off the outdoor space.',
-    svg: function(choices){
-      var extras = (choices && Array.isArray(choices.extras)) ? choices.extras : [];
-      var scene = '<rect x="0" y="172" width="320" height="38" fill="#EAF3E2"/>' +
-        worker(150, 150, VEST) +
-        '<g transform="translate(160,158)"><rect x="-2" y="-14" width="4" height="14" fill="#5F6C74"/></g>' +
-        '<circle cx="60" cy="165" r="9" fill="#5C9A4C"/><rect x="58" y="165" width="4" height="7" fill="#7C5A3C"/>' +
-        '<circle cx="260" cy="165" r="9" fill="#5C9A4C"/><rect x="258" y="165" width="4" height="7" fill="#7C5A3C"/>';
-      if(extras.indexOf('garage') !== -1) scene += '<rect x="230" y="148" width="40" height="24" fill="#C7CDD1"/><line x1="230" y1="158" x2="270" y2="158" stroke="#7C8B95"/>';
-      return '<svg viewBox="0 0 320 210" xmlns="http://www.w3.org/2000/svg">' +
-        '<rect x="0" y="0" width="320" height="210" fill="' + SKY + '"/>' +
-        '<line x1="0" y1="172" x2="320" y2="172" stroke="' + GROUND + '" stroke-width="4"/>' +
-        scene + '</svg>';
+  storyboard.push(scenePage('landscaping', 'Landscaping & the yard',
+    'Paths, garden beds, trees, and final grading finish the outdoor space.',
+    function(choices){
+      var extras = Array.isArray(choices.extras) ? choices.extras : [];
+      return { slab: true, walls: true, walls2: true, roof: true, windows: true, cladApplied: true, done: true,
+        pool: extras.indexOf('pool') !== -1, tennis: extras.indexOf('tennis_court') !== -1,
+        sauna: extras.indexOf('sauna') !== -1, gym: extras.indexOf('gym') !== -1,
+        tree: extras.indexOf('tree_in_house') !== -1 };
     },
-  });
+    function(s){ return fig(374, 262); }
+  ));
 
-  storyboard.push(page('handover', 'Move-in day',
-    'Final walkthrough, keys handed over — welcome home.',
-    '<rect x="115" y="110" width="90" height="62" fill="#D8D2C2"/>' +
-    '<polygon points="108,110 160,78 212,110" fill="#5B4636"/>' +
-    '<rect x="150" y="148" width="20" height="24" fill="#5B4636"/>' +
-    '<rect x="122" y="118" width="18" height="18" fill="#BFE3F2" stroke="#5B4636" stroke-width="2"/>' +
-    worker(90, 150, '#2C6EBE') +
-    '<text x="160" y="196" font-size="10" text-anchor="middle" fill="#387420">🔑 Welcome home</text>'
+  storyboard.push(scenePage('handover', 'Move-in day',
+    'Final walkthrough, keys handed over — welcome home. 🔑',
+    function(choices){
+      var extras = Array.isArray(choices.extras) ? choices.extras : [];
+      return { slab: true, walls: true, walls2: true, roof: true, windows: true, cladApplied: true, done: true,
+        pool: extras.indexOf('pool') !== -1, tennis: extras.indexOf('tennis_court') !== -1,
+        sauna: extras.indexOf('sauna') !== -1, gym: extras.indexOf('gym') !== -1,
+        tree: extras.indexOf('tree_in_house') !== -1 };
+    },
+    function(s){ return window.ISO.minifig(86, 262, 1, '#2C6EBE', null) + window.ISO.minifig(112, 264, 0.92, '#D93B3B', null); }
   ));
 
   HOUSE_MODULE.storyboard = storyboard;
